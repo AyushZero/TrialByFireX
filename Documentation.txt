@@ -1,0 +1,545 @@
+================================================================================
+PHYSICS-GUIDED IGNITION PROBABILITY MODELLING
+Using ERA5, MODIS, Sentinel, SRTM, and FIRMS
+================================================================================
+Documentation – Complete Implementation Guide
+Generated: 2026-03-26
+================================================================================
+
+TABLE OF CONTENTS
+─────────────────
+1.  System Architecture Document
+2.  Data Flow Document
+3.  Math & ML Specification Document
+4.  Engineering Plan / Implementation Steps
+5.  File-by-File Code Reference
+6.  How to Set Up and Run
+7.  Configuration Reference
+
+================================================================================
+1. SYSTEM ARCHITECTURE DOCUMENT
+================================================================================
+
+1.1 HIGH-LEVEL OVERVIEW
+───────────────────────
+Goal: For each grid cell (~0.25°) and each day, produce a calibrated ignition
+probability p_ign(t) ∈ [0, 1] using physics-guided features from ERA5, MODIS/
+Sentinel, SRTM, and FIRMS.
+
+Study Region: California (32°N–42°N, 124°W–114°W)
+Time Period:  2021-01-01 to 2023-12-31
+Grid:         0.25° regular lat/lon grid (~40 lat × 40 lon = 1,600 cells)
+
+1.2 MAIN COMPONENTS
+────────────────────
+
+Component 1 – Data Ingestion Layer
+  ├── ERA5 reanalysis (temperature, dewpoint, wind, precipitation, soil moisture)
+  ├── MODIS/Sentinel vegetation indices (NDVI, NDWI/NDMI)
+  ├── SRTM DEM → slope
+  └── FIRMS VIIRS fire points (FRP, confidence, type)
+
+Component 2 – Preprocessing & Harmonisation
+  ├── Reprojection to WGS84 (EPSG:4326)
+  ├── Spatial resampling to 0.25° grid
+  ├── Temporal alignment to daily resolution
+  └── Quality filtering (vegetation fires, nominal/high confidence)
+
+Component 3 – Feature Engineering (Physics-Guided)
+  ├── Compute normalised drivers: T̃, RH̃, Ũ, SM̃, NDVI~, NDWI~, θ̃
+  ├── Compute composite factors: F_avail, F_dry, G_spread, H_history
+  └── Build scalar risk index R_phys(t)
+
+Component 4 – Modelling & Training
+  ├── Logistic regression on R_phys(t)
+  ├── Baseline models on raw attributes
+  ├── Year-wise train/val/test split (no temporal leakage)
+  └── Hyperparameter tuning & calibration
+
+Component 5 – Inference & Serving
+  ├── Daily batch process (ingest → normalise → features → predict)
+  └── Output: ignition probability raster (GeoTIFF/NetCDF)
+
+Component 6 – Evaluation & Visualisation
+  ├── AUC-ROC, AUC-PR, Brier score
+  ├── Reliability diagrams
+  ├── Hit/false-alarm rates by slope/NDVI classes
+  └── Probability map visualisation
+
+================================================================================
+2. DATA FLOW DOCUMENT
+================================================================================
+
+2.1 OFFLINE TRAINING DATA FLOW
+───────────────────────────────
+
+Step 1: Raw Data Collection
+  ERA5 (via CDS API):
+    • Variables: t2m, d2m, u10, v10, tp, swvl1
+    • Hourly data, California bounding box
+    • Downloaded as NetCDF: data/raw/era5/era5_{YEAR}.nc
+
+  MODIS (via NASA AppEEARS or synthetic):
+    • 16-day NDVI and NDWI composites
+    • Resampled to 0.25° grid
+    • Stored as NetCDF: data/raw/modis/modis_{YEAR}.nc
+
+  SRTM (via NASA Earthdata):
+    • 30m DEM → compute slope (degrees)
+    • Resample to 0.25°
+    • Stored as: data/raw/srtm/srtm_slope.nc
+
+  FIRMS (via NASA FIRMS REST API):
+    • Fields: latitude, longitude, acq_date, acq_time, confidence, frp, type
+    • Filter: vegetation fires, nominal+high confidence
+    • Stored as: data/raw/firms/firms_{YEAR}.csv
+
+Step 2: Spatial Harmonisation
+  • All data reprojected to WGS84 (EPSG:4326)
+  • Regular 0.25° grid (matching ERA5)
+  • MODIS/Sentinel: average/max NDVI per cell per day
+  • SRTM: mean slope per cell
+  • FIRMS: assign fires to grid cells via lat/lon binning
+
+Step 3: Temporal Harmonisation (daily)
+  ERA5 hourly → daily:
+    • T_max(t)   = daily maximum t2m (converted to °C)
+    • RH_min(t)  = daily minimum RH (from t2m & d2m via Magnus formula)
+    • U10_max(t) = daily max 10m wind speed = max(sqrt(u10² + v10²))
+    • P_tot(t)   = daily total precipitation (m → mm)
+    • SM_top(t)  = daily mean soil moisture (m³/m³)
+
+  MODIS 16-day → daily:
+    • Last-observation-carried-forward interpolation
+
+  FIRMS → daily:
+    • y(t) = 1 if any new hotspot in cell on day t, else 0
+    • FRP_hist(t) = Σ_{k=1..7} λ^k · y(t-k)  (exponential decay, λ=0.5)
+    • Count_hist(t) = Σ_{k=1..7} λ^k · y(t-k)
+
+Step 4: Normalisation
+  For each variable X over full 2021–2023 period:
+    X̃ = (X − X_min) / (X_max − X_min)   →   X̃ ∈ [0, 1]
+
+  Applied to: T, RH, U, SM, NDVI, NDWI, slope, FRP_hist, Count_hist.
+  Parameters saved to: data/processed/norm_params.json
+
+Step 5: Feature Composition
+  F_avail(t)   = NDVI~(t)
+  F_dry(t)     = α₁(1 − NDWI~) + α₂(1 − RH~) + α₃(1 − SM~)
+  G_spread(t)  = 1 + β₁·Ũ(t) + β₂·θ~
+  H_history(t) = γ₁·FRP~_hist + γ₂·Count~_hist
+  R_phys(t)    = T̃(t) · F_avail(t) · F_dry(t) · G_spread(t) + H_history(t)
+
+  Default weights: α = (0.4, 0.3, 0.3), β = (0.6, 0.4), γ = (0.6, 0.4)
+
+Step 6: Model Training Input
+  Per cell/day in training years:
+    Input:  R_phys(t) (primary), or full normalised vector (baselines)
+    Label:  y(t) ∈ {0, 1}
+
+2.2 ONLINE INFERENCE DATA FLOW
+───────────────────────────────
+
+  Input for day T:
+    • ERA5 daily at T: T_max, RH_min, U10_max, P_tot, SM_top
+    • Latest MODIS NDVI(T), NDWI(T)
+    • SRTM slope (static)
+    • FIRMS history: days T-7 … T-1
+
+  Processing:
+    1. Normalise using stored min/max parameters
+    2. Compute F_avail, F_dry, G_spread, H_history
+    3. Compute R_phys(T)
+
+  Model application:
+    p_ign(T) = σ(a · R_phys(T) + b)
+
+  Output: per-cell probability raster (GeoTIFF or NetCDF)
+
+================================================================================
+3. MATH & ML SPECIFICATION DOCUMENT
+================================================================================
+
+3.1 BASIC VARIABLES (all normalised to [0, 1])
+───────────────────────────────────────────────
+  T̃       : normalised daily max 2m temperature
+  RH̃      : normalised daily min relative humidity
+  Ũ       : normalised daily max 10m wind speed
+  SM̃      : normalised top-layer soil moisture
+  NDVI~   : normalised NDVI
+  NDWI~   : normalised NDWI/NDMI
+  θ̃       : normalised slope
+  FRP̃_hist : normalised decayed FRP history
+  Count̃_hist: normalised decayed hotspot count history
+
+3.2 COMPOSITE FACTORS
+─────────────────────
+
+  (a) Fuel Availability:
+      F_avail(t) = NDVI~(t)
+      → Represents live biomass available to burn
+
+  (b) Fuel Dryness (LFMC proxy):
+      F_dry(t) = α₁(1 − NDWI~(t)) + α₂(1 − RH̃(t)) + α₃(1 − SM̃(t))
+      → Captures canopy water deficit + atmospheric dryness + soil deficit
+      → α_i can be fixed from literature or tuned
+
+  (c) Wind–Slope Spreading Potential:
+      G_spread(t) = 1 + β₁·Ũ(t) + β₂·θ̃
+      → Encodes how wind and slope amplify fire spread
+
+  (d) Recent Fire Activity:
+      H_history(t) = γ₁·FRP̃_hist(t) + γ₂·Count̃_hist(t)
+      → Short-term memory of local fire activity
+
+3.3 COMPOSITE IGNITION RISK INDEX
+──────────────────────────────────
+  R_phys(t) = T̃(t) · F_avail(t) · F_dry(t) · G_spread(t) + H_history(t)
+
+  Properties:
+    • Dimensionless
+    • Monotonic in all ignition-promoting factors
+    • Multiplicative structure mirrors FWI logic (heat × dryness × wind × fuel)
+    • Additive fire history term accounts for persistence effects
+
+3.4 LOGISTIC REGRESSION CALIBRATION
+────────────────────────────────────
+  Model:
+    p_ign(t) = σ(a · R_phys(t) + b) = 1 / (1 + exp(−(a · R_phys(t) + b)))
+
+  Where:
+    • p_ign(t) ∈ [0, 1]: probability of at least one ignition in cell/day
+    • a, b: learned by maximum likelihood from FIRMS labels y(t)
+
+  Training objective (binary cross-entropy):
+    L(a,b) = −Σ_t [ y(t) log p_ign(t) + (1−y(t)) log(1 − p_ign(t)) ]
+
+  Minimise L over training years (2021).
+  Class weights balanced to handle extreme class imbalance (~1:99).
+
+3.5 BASELINE MODELS (for comparison)
+─────────────────────────────────────
+  Baseline 1 – Attribute-Only Logistic Regression:
+    • Input: full normalised vector (T̃, RH̃, Ũ, SM̃, NDVI~, NDWI~, θ̃, FRP̃, Count̃)
+    • No physics composition into R_phys
+    • 9 learned coefficients + intercept
+
+  Baseline 2 – Random Forest:
+    • Same raw attributes as above
+    • 200 trees, max depth 10
+    • Class-balanced
+    • Compare discriminative power vs logistic and physics-guided
+
+3.6 EVALUATION METRICS
+──────────────────────
+  • AUC-ROC:    discrimination under class imbalance
+  • AUC-PR:     performance on rare positive events
+  • Brier Score: calibration quality of probabilities
+  • Reliability diagram: predicted vs observed ignition fraction
+  • Hit rate vs false alarm rate by slope/NDVI classes
+
+  Train/Val/Test split:
+    Train: 2021,  Validation: 2022,  Test: 2023
+    (year-wise split prevents temporal leakage)
+
+================================================================================
+4. ENGINEERING PLAN / IMPLEMENTATION STEPS
+================================================================================
+
+PHASE 1 – ENVIRONMENT & DATA ACCESS
+─────────────────────────────────────
+  [x] Set up Python environment
+      • Stack: xarray, netCDF4, rasterio, geopandas, numpy, pandas,
+               scikit-learn, matplotlib, seaborn, cdsapi, requests
+      • File: requirements.txt
+
+  [x] Create project directory structure
+      • data/raw/{era5,firms,modis,srtm}/, data/processed/, data/features/
+      • scripts/, src/, notebooks/, models/, outputs/
+
+  [x] Data download scripts
+      • scripts/download_era5.py   – CDS API for ERA5
+      • scripts/download_firms.py  – NASA FIRMS REST API
+      • scripts/download_modis.py  – NASA AppEEARS / manual
+      • scripts/download_srtm.py   – NASA Earthdata / OpenTopography
+      • All scripts include --synthetic flag for demo data generation
+
+PHASE 2 – PREPROCESSING & GRIDDING
+────────────────────────────────────
+  [x] Grid builder (src/grid.py)
+      • 0.25° regular grid construction
+      • Point-to-cell assignment function
+
+  [x] Daily aggregation pipeline (src/preprocess.py)
+      • ERA5: T_max, RH_min (Magnus formula), U10_max, P_tot, SM_top
+      • MODIS: daily NDVI/NDWI via forward-fill
+      • SRTM: static slope loading
+      • FIRMS: ignition labels + decayed sliding-window features
+
+  [x] Normalisation (src/normalize.py)
+      • Global min-max parameters over full multi-year period
+      • Persist to JSON for reproducible inference
+
+PHASE 3 – FEATURE ENGINEERING & RISK INDEX
+───────────────────────────────────────────
+  [x] Physics-guided feature builder (src/features.py)
+      • F_avail, F_dry, G_spread, H_history computation
+      • R_phys composite index
+      • Configurable weights (α, β, γ) from config.yaml
+
+  [x] Dataset assembly (src/dataset.py)
+      • Flatten gridded features to pandas DataFrame
+      • Year-wise temporal split function
+
+PHASE 4 – MODELLING & EVALUATION
+──────────────────────────────────
+  [x] Model training (src/models.py)
+      • Physics logistic (1 feature: R_phys)
+      • Attribute logistic (9 features)
+      • Random Forest (9 features, 200 trees)
+      • Save/load via pickle
+
+  [x] Evaluation (src/evaluate.py)
+      • AUC-ROC, AUC-PR, Brier score
+      • ROC curves, PR curves
+      • Reliability diagram
+      • Stratified performance analysis
+
+PHASE 5 – OPERATIONAL PIPELINE
+───────────────────────────────
+  [x] Inference pipeline (src/inference.py)
+      • Load model + normalisation params
+      • Compute daily R_phys → p_ign
+      • Output NetCDF and GeoTIFF probability maps
+
+  [x] Visualisation (src/visualize.py)
+      • Probability maps with fire-risk colormap
+      • Feature distributions
+      • R_phys timeseries
+      • Model comparison bar charts
+
+PHASE 6 – DOCUMENTATION & NOTEBOOKS
+─────────────────────────────────────
+  [x] Jupyter notebook (notebooks/01_modelling_pipeline.ipynb)
+      • Interactive walkthrough of entire pipeline
+      • Sections 0–10 covering setup through analysis
+      • Inline plots and model comparison
+
+  [x] Documentation.txt (this file)
+
+================================================================================
+5. FILE-BY-FILE CODE REFERENCE
+================================================================================
+
+PROJECT ROOT: c:\Minor\TrialsByFireX\
+
+Configuration & Setup
+─────────────────────
+  config.yaml       – Study region, time range, physics weights (α,β,γ),
+                      API keys, file paths. Central configuration file.
+  requirements.txt  – Python package dependencies
+  README.md         – Quick start guide
+
+Data Download (scripts/)
+────────────────────────
+  download_era5.py  – Downloads ERA5 data from Copernicus CDS API.
+                      Supports --synthetic flag for demo data.
+                      Variables: t2m, d2m, u10, v10, tp, swvl1.
+
+  download_firms.py – Downloads VIIRS fire data from NASA FIRMS REST API.
+                      Filters by confidence (nominal/high) and type (vegetation).
+                      10-day chunk downloads to respect API limits.
+
+  download_modis.py – MODIS NDVI/NDWI download guidance.
+                      Synthetic: generates seasonal NDVI/NDWI patterns.
+                      Real: instructions for NASA AppEEARS or GEE.
+
+  download_srtm.py  – SRTM DEM download and slope computation.
+                      Synthetic: generates terrain-like slope mimicking
+                      Sierra Nevada topography.
+
+Core Library (src/)
+───────────────────
+  __init__.py       – Package marker
+
+  grid.py           – build_grid(): creates 0.25° lat/lon grid
+                      assign_to_grid(): maps (lat,lon) → cell indices
+                      grid_info(): returns grid metadata from config
+
+  preprocess.py     – process_era5(): hourly → daily aggregation
+                      process_modis(): 16-day → daily via forward-fill
+                      process_srtm(): loads precomputed slope
+                      process_firms(): creates labels + decayed features
+
+  normalize.py      – compute_norm_params(): global min/max per variable
+                      normalize(): min-max to [0,1]
+                      save_params() / load_params(): JSON persistence
+
+  features.py       – compute_F_avail(): fuel availability
+                      compute_F_dry(): dryness factor
+                      compute_G_spread(): wind-slope spreading
+                      compute_H_history(): fire history
+                      compute_R_phys(): composite risk index
+                      build_all_features(): orchestrator function
+
+  dataset.py        – build_dataset(): NetCDF → flat DataFrame
+                      split_by_year(): temporal split
+                      get_Xy(): feature/label extraction
+
+  models.py         – train_physics_logistic(): LR on R_phys
+                      train_attribute_logistic(): LR on all features
+                      train_random_forest(): RF baseline
+                      save_model() / load_model(): pickle persistence
+                      predict_proba(): probability prediction
+
+  evaluate.py       – compute_metrics(): AUC-ROC, AUC-PR, Brier
+                      compare_models(): comparison table
+                      plot_roc_curves(): ROC visualization
+                      plot_pr_curves(): PR visualization
+                      reliability_diagram(): calibration plot
+                      performance_by_strata(): hit/FA rate by class
+
+  inference.py      – run_inference(): daily probability computation
+                      write_geotiff(): raster output
+
+  visualize.py      – plot_probability_map(): fire risk map
+                      plot_feature_distributions(): histograms by label
+                      plot_R_phys_timeseries(): temporal index plot
+                      plot_model_comparison_bar(): metric comparison
+
+Pipeline Runners
+────────────────
+  run_preprocess.py – End-to-end: raw data → features NetCDF
+                      Usage: python run_preprocess.py [--synthetic]
+
+  run_train.py      – Training: features → models → evaluation plots
+                      Usage: python run_train.py
+
+  run_inference.py  – Daily inference: data → probability map
+                      Usage: python run_inference.py --date 2023-06-15
+
+Notebooks
+─────────
+  notebooks/01_modelling_pipeline.ipynb
+      – Interactive Jupyter notebook covering the full pipeline
+      – Sections: Setup → Synthetic Data → Preprocessing → Normalisation
+      → Feature Engineering → Model Training → Evaluation → Probability Map
+
+================================================================================
+6. HOW TO SET UP AND RUN
+================================================================================
+
+STEP 1: Install Python Dependencies
+────────────────────────────────────
+    cd c:\Minor\TrialsByFireX
+    pip install -r requirements.txt
+
+STEP 2: Configure API Keys (for real data)
+──────────────────────────────────────────
+  ERA5 – CDS API:
+    Create file: %USERPROFILE%\.cdsapirc
+    Contents:
+        url: https://cds.climate.copernicus.eu/api
+        key: <your-CDS-key>
+
+  FIRMS – NASA:
+    Set map_key in config.yaml → firms → map_key
+    (Already configured: 5b037742a4a4c87b04db2fe9e5c412b4)
+
+STEP 3a: Generate Synthetic Data (for testing)
+──────────────────────────────────────────────
+    python scripts/download_era5.py --synthetic
+    python scripts/download_firms.py --synthetic
+    python scripts/download_modis.py --synthetic
+    python scripts/download_srtm.py --synthetic
+
+    OR (all at once):
+    python run_preprocess.py --synthetic
+
+STEP 3b: Download Real Data
+───────────────────────────
+    python scripts/download_era5.py
+    python scripts/download_firms.py
+    python scripts/download_modis.py
+    python scripts/download_srtm.py
+
+STEP 4: Preprocess & Build Features
+────────────────────────────────────
+    python run_preprocess.py
+
+    This will:
+    • Process all raw data to daily gridded format
+    • Compute normalisation parameters
+    • Normalise all drivers
+    • Compute physics-guided features
+    • Save features to data/features/features.nc
+
+STEP 5: Train Models & Evaluate
+────────────────────────────────
+    python run_train.py
+
+    This will:
+    • Load feature dataset
+    • Split by year (2021/2022/2023)
+    • Train 3 models (physics, attribute, RF)
+    • Evaluate (AUC-ROC, AUC-PR, Brier)
+    • Generate plots in outputs/
+
+STEP 6: Run Inference
+─────────────────────
+    python run_inference.py --date 2023-07-15
+
+    Outputs:
+    • outputs/p_ign_2023-07-15.nc    (probability NetCDF)
+    • outputs/map_2023-07-15.png     (visualisation)
+
+STEP 7: Interactive Notebook
+────────────────────────────
+    cd notebooks
+    jupyter notebook 01_modelling_pipeline.ipynb
+
+================================================================================
+7. CONFIGURATION REFERENCE (config.yaml)
+================================================================================
+
+  region:
+    name:    "California"
+    lat_min: 32.0       # Southern boundary
+    lat_max: 42.0       # Northern boundary
+    lon_min: -124.0     # Western boundary
+    lon_max: -114.0     # Eastern boundary
+
+  time:
+    start:       "2021-01-01"
+    end:         "2023-12-31"
+    train_years: [2021]
+    val_years:   [2022]
+    test_years:  [2023]
+
+  grid:
+    resolution: 0.25    # degrees (~28 km)
+
+  alpha:                # Fuel dryness weights
+    alpha1: 0.4         # Canopy water deficit
+    alpha2: 0.3         # Atmospheric dryness
+    alpha3: 0.3         # Soil water deficit
+
+  beta:                 # Spreading potential weights
+    beta1: 0.6          # Wind speed
+    beta2: 0.4          # Slope
+
+  gamma:                # Fire history weights
+    gamma1: 0.6         # FRP history
+    gamma2: 0.4         # Hotspot count history
+
+  firms:
+    sliding_window_days: 7
+    decay_factor: 0.5
+    confidence_filter: ["nominal", "high"]
+    type_filter: "vegetation"
+    map_key: "5b037742a4a4c87b04db2fe9e5c412b4"
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

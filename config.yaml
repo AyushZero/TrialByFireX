@@ -1,0 +1,66 @@
+# ============================================================
+# Physics-Guided Ignition Probability Modelling – Configuration
+# ============================================================
+
+# ------ Study Region (California) ------
+region:
+  name: "California"
+  lat_min: 32.0
+  lat_max: 42.0
+  lon_min: -124.0
+  lon_max: -114.0
+
+# ------ Time Range ------
+time:
+  start: "2021-01-01"
+  end: "2021-12-31"   # Focused on 2021 for Dixie Fire case study
+  train_years: [2021]         # Will rely on Spatial CV for splitting
+  val_years: [2021]
+  test_years: [2021]
+
+# ------ Grid ------
+grid:
+  resolution: 0.25   # degrees
+
+# ------ Physics Weights ------
+# Fuel dryness: F_dry = α1*(1 - NDWI~) + α2*(1 - RH~) + α3*(1 - SM~)
+alpha:
+  alpha1: 0.4   # canopy water deficit weight
+  alpha2: 0.3   # atmospheric dryness weight
+  alpha3: 0.3   # soil water deficit weight
+
+# Wind-slope spread: G_spread = 1 + β1*U~ + β2*θ~
+beta:
+  beta1: 0.6    # wind speed weight
+  beta2: 0.4    # slope weight
+
+# Fire history: H_history = γ1*FRP~_hist + γ2*Count~_hist
+gamma:
+  gamma1: 0.6   # FRP history weight
+  gamma2: 0.4   # hotspot count history weight
+
+# ------ FIRMS settings ------
+firms:
+  sliding_window_days: 7
+  decay_factor: 0.5          # exponential decay λ
+  confidence_filter: ["nominal", "high"]
+  type_filter: "vegetation"
+  map_key: "5b037742a4a4c87b04db2fe9e5c412b4"
+
+# ------ ERA5 / CDS API ------
+era5:
+  variables:
+    - "2m_temperature"
+    - "2m_dewpoint_temperature"
+    - "10m_u_component_of_wind"
+    - "10m_v_component_of_wind"
+    - "total_precipitation"
+    - "volumetric_soil_water_layer_1"
+
+# ------ Paths ------
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  features: "data/features"
+  models: "models"
+  outputs: "outputs"
