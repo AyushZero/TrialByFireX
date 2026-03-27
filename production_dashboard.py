@@ -1,8 +1,8 @@
 """
-🔥 TrialsByFireX – Production Inference Dashboard
+🔥 TrialsByFireX - Production Inference Dashboard
 Dark-theme Streamlit dashboard for wildfire risk prediction.
 
-Users input weather conditions → get real-time ignition probability.
+Users input weather conditions [RIGHT] get real-time ignition probability.
 Features:
   • Interactive risk calculator with physics sliders
   • Dark heatmap over California grid
@@ -22,15 +22,15 @@ from plotly.subplots import make_subplots
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
-# ── Page config ──────────────────────────────────────────────────
+# -- Page config --------------------------------------------------
 st.set_page_config(
-    page_title="TrialsByFireX – Wildfire Risk Predictor",
+    page_title="TrialsByFireX - Wildfire Risk Predictor",
     page_icon="🔥",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── Dark theme CSS ───────────────────────────────────────────────
+# -- Dark theme CSS -----------------------------------------------
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -77,7 +77,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ── Data loading ─────────────────────────────────────────────────
+# -- Data loading -------------------------------------------------
 @st.cache_data
 def load_config():
     with open(os.path.join(ROOT, "config.yaml")) as f:
@@ -108,12 +108,12 @@ def load_comparison():
     return None
 
 
-# ── Load resources ───────────────────────────────────────────────
+# -- Load resources -----------------------------------------------
 cfg = load_config()
 model_phys = load_model("physics_logistic")
 
 
-# ── Sidebar ──────────────────────────────────────────────────────
+# -- Sidebar ------------------------------------------------------
 with st.sidebar:
     st.markdown("# 🔥 TrialsByFireX")
     st.markdown("**Physics-Guided Wildfire<br>Risk Prediction**",
@@ -124,12 +124,12 @@ with st.sidebar:
     if model_phys:
         a = model_phys.coef_[0, 0]
         b = model_phys.intercept_[0]
-        st.code(f"p = σ({a:.3f}·R + {b:.3f})", language="text")
+        st.code(f"p = σ({a:.3f}.R + {b:.3f})", language="text")
     else:
         st.warning("No trained model found")
 
     st.markdown("### ⏱ Training Period")
-    st.markdown(f"{cfg['time']['start']} → {cfg['time']['end']}")
+    st.markdown(f"{cfg['time']['start']} [RIGHT] {cfg['time']['end']}")
 
     st.markdown("### 🔬 Physics Weights")
     st.markdown(f"""
@@ -140,10 +140,10 @@ with st.sidebar:
 
     st.markdown("---")
     st.caption("Conference-ready research pipeline")
-    st.caption("ERA5 · MODIS · SRTM · FIRMS")
+    st.caption("ERA5 . MODIS . SRTM . FIRMS")
 
 
-# ── Main content tabs ────────────────────────────────────────────
+# -- Main content tabs --------------------------------------------
 tab_predict, tab_map, tab_results, tab_about = st.tabs([
     "🧮 Predict Risk", "🗺️ Risk Map", "📊 Results", "📐 About"
 ])
@@ -164,7 +164,7 @@ with tab_predict:
         st.markdown("### 🌡️ Meteorological Conditions")
         c1, c2, c3 = st.columns(3)
         with c1:
-            temp_C = st.slider("Temperature (°C)", 0, 50, 35, 1,
+            temp_C = st.slider("Temperature ( degC)", 0, 50, 35, 1,
                                help="Daily maximum 2m temperature")
             rh_pct = st.slider("Relative Humidity (%)", 0, 100, 20, 1,
                                help="Daily minimum relative humidity")
@@ -198,7 +198,7 @@ with tab_predict:
             count_hist = st.slider("Fire Count", 0, 20, 0, 1,
                                    help="Decayed hotspot count nearby")
 
-    # ── Normalise inputs ──
+    # -- Normalise inputs --
     T_norm = np.clip(temp_C / 50.0, 0, 1)
     RH_norm = np.clip(rh_pct / 100.0, 0, 1)
     U_norm = np.clip(wind_ms / 30.0, 0, 1)
@@ -227,7 +227,7 @@ with tab_predict:
         p_ign = float(1 / (1 + np.exp(-R_phys)))
 
     with col_result:
-        st.markdown("### ⚡ Prediction")
+        st.markdown("### [LIGHTNING] Prediction")
 
         # Risk level with giant colored box
         if p_ign < 0.3:
@@ -308,7 +308,7 @@ with tab_map:
                 min_value=dates[0].date(), max_value=dates[-1].date(),
             )
         with c_thresh:
-            threshold = st.slider("⚠ Alert Threshold", 0.0, 1.0, 0.5, 0.05)
+            threshold = st.slider("[WARN] Alert Threshold", 0.0, 1.0, 0.5, 0.05)
 
         target = np.datetime64(str(selected_date))
         t_idx = np.argmin(np.abs(ds.time.values - target))
@@ -343,7 +343,7 @@ with tab_map:
                     tickfont=dict(color="#c0c0c0"),
                     bgcolor="rgba(0,0,0,0.5)",
                 ),
-                hovertemplate="Lat: %{y:.2f}°N<br>Lon: %{x:.2f}°W<br>p_ign: %{z:.4f}<extra></extra>",
+                hovertemplate="Lat: %{y:.2f} degN<br>Lon: %{x:.2f} degW<br>p_ign: %{z:.4f}<extra></extra>",
             ))
 
             # Dark map layout
@@ -391,7 +391,7 @@ with tab_map:
             c4.metric("R_phys mean", f"{np.nanmean(R_day):.4f}")
 
             if np.any(prob_grid > threshold):
-                st.error(f"⚠ **ALERT**: {np.sum(prob_grid > threshold)} cells "
+                st.error(f"[WARN] **ALERT**: {np.sum(prob_grid > threshold)} cells "
                          f"exceed the {threshold:.0%} threshold!")
     else:
         st.warning("Run `python run_preprocess.py --synthetic` and "
@@ -491,34 +491,34 @@ with tab_about:
     |--------|---------|------------------------|
     | **F_avail** | NDVĪ(t) | Live fuel biomass available to burn |
     | **F_dry** | α₁(1−NDWĪ) + α₂(1−RH̄) + α₃(1−SM̄) | Canopy + atmospheric + soil dryness |
-    | **G_spread** | 1 + β₁·Ū + β₂·θ̄ | Wind and slope amplification |
-    | **H_history** | γ₁·FRP̄ₕ + γ₂·Count̄ₕ | Recent fire persistence |
+    | **G_spread** | 1 + β₁.Ū + β₂.θ̄ | Wind and slope amplification |
+    | **H_history** | γ₁.FRP̄ₕ + γ₂.Count̄ₕ | Recent fire persistence |
 
     ### Risk Index
-    > **R_phys(t) = T̄(t) · F_avail · F_dry · G_spread + H_history**
+    > **R_phys(t) = T̄(t) . F_avail . F_dry . G_spread + H_history**
 
     ### Calibrated Probability
-    > **p_ign(t) = σ(a · R_phys + b) = 1 / (1 + exp(-(a · R_phys + b)))**
+    > **p_ign(t) = σ(a . R_phys + b) = 1 / (1 + exp(-(a . R_phys + b)))**
 
     ### Data Sources
     | Source | Variables | Resolution |
     |--------|-----------|------------|
-    | ERA5 | Temperature, RH, wind, precipitation, soil moisture | 0.25°, hourly |
+    | ERA5 | Temperature, RH, wind, precipitation, soil moisture | 0.25 deg, hourly |
     | MODIS | NDVI, NDWI | 1km, 16-day |
-    | SRTM | DEM → slope | 30m |
+    | SRTM | DEM [RIGHT] slope | 30m |
     | FIRMS | Fire hotspots (FRP, type, confidence) | 375m, daily |
 
     ### Study Region
-    **California, USA** (32°N–42°N, 124°W–114°W), 2021–2023
+    **California, USA** (32 degN-42 degN, 124 degW-114 degW), 2021-2023
     """)
 
 
-# ── Footer ───────────────────────────────────────────────────────
+# -- Footer -------------------------------------------------------
 st.markdown("---")
 st.markdown(
     "<center style='color:#555'>"
-    "TrialsByFireX · Physics-Guided Ignition Probability Modelling · "
-    "ERA5 · MODIS · SRTM · FIRMS"
+    "TrialsByFireX . Physics-Guided Ignition Probability Modelling . "
+    "ERA5 . MODIS . SRTM . FIRMS"
     "</center>",
     unsafe_allow_html=True,
 )

@@ -1,5 +1,5 @@
 """
-Preprocessing – daily aggregation of raw datasets to gridded daily values.
+Preprocessing - daily aggregation of raw datasets to gridded daily values.
 
 Handles ERA5, MODIS, SRTM, and FIRMS data.
 """
@@ -12,14 +12,14 @@ from src.grid import build_grid, assign_to_grid, grid_info
 
 
 # ══════════════════════════════════════════════════════════════════
-# ERA5 → daily aggregates
+# ERA5 -> daily aggregates
 # ══════════════════════════════════════════════════════════════════
 
 def _relative_humidity(t2m_K, d2m_K):
     """Magnus formula: compute RH (%) from T and dewpoint (both in K)."""
     t = t2m_K - 273.15
     td = d2m_K - 273.15
-    # August–Roche–Magnus approximation
+    # August-Roche-Magnus approximation
     rh = 100 * np.exp(17.625 * td / (243.04 + td)) / \
                np.exp(17.625 * t  / (243.04 + t))
     return np.clip(rh, 0, 100)
@@ -27,14 +27,14 @@ def _relative_humidity(t2m_K, d2m_K):
 
 def process_era5(raw_dir, cfg):
     """
-    Process ERA5 hourly NetCDFs → daily grid-level aggregates.
+    Process ERA5 hourly NetCDFs -> daily grid-level aggregates.
 
     Output variables per cell per day:
-      t_max   – daily max 2 m temperature (°C)
-      rh_min  – daily min relative humidity (%)
-      u10_max – daily max 10 m wind speed (m/s)
-      p_tot   – daily total precipitation (mm)
-      sm_top  – daily mean top-layer soil moisture (m³/m³)
+      t_max   - daily max 2 m temperature ( degC)
+      rh_min  - daily min relative humidity (%)
+      u10_max - daily max 10 m wind speed (m/s)
+      p_tot   - daily total precipitation (mm)
+      sm_top  - daily mean top-layer soil moisture (m³/m³)
 
     Returns xr.Dataset with dims (time, latitude, longitude).
     """
@@ -46,7 +46,7 @@ def process_era5(raw_dir, cfg):
 
     all_years = []
     for f in files:
-        print(f"  Processing {os.path.basename(f)} …")
+        print(f"  Processing {os.path.basename(f)}...")
         ds = xr.open_dataset(f)
 
         # Rename coords if needed
@@ -71,7 +71,7 @@ def process_era5(raw_dir, cfg):
         daily["t_max"]   = (ds["t2m"] - 273.15).resample(time="1D").max()
         daily["rh_min"]  = ds["rh"].resample(time="1D").min()
         daily["u10_max"] = ds["ws"].resample(time="1D").max()
-        daily["p_tot"]   = ds["tp"].resample(time="1D").sum() * 1000  # m → mm
+        daily["p_tot"]   = ds["tp"].resample(time="1D").sum() * 1000  # m -> mm
         daily["sm_top"]  = ds["swvl1"].resample(time="1D").mean()
 
         # Regrid to target lats/lons (nearest-neighbour interpolation)
@@ -81,16 +81,22 @@ def process_era5(raw_dir, cfg):
         ds.close()
 
     result = xr.concat(all_years, dim="time")
+    # Sort by time, handling potential calendar mismatches
+    result = result.assign_coords(time=result.time.values.astype("datetime64[ns]"))
+    result = result.sortby("time")
+    # Remove duplicates, keeping first occurrence
+    _, unique_indices = np.unique(result.time.values, return_index=True)
+    result = result.isel(time=unique_indices)
     return result
 
 
 # ══════════════════════════════════════════════════════════════════
-# MODIS → daily NDVI, NDWI (interpolated)
+# MODIS -> daily NDVI, NDWI (interpolated)
 # ══════════════════════════════════════════════════════════════════
 
 def process_modis(raw_dir, cfg):
     """
-    Process MODIS 16-day composites → daily NDVI & NDWI via
+    Process MODIS 16-day composites -> daily NDVI & NDWI via
     last-observation-carried-forward interpolation.
 
     Returns xr.Dataset with daily (time, latitude, longitude).
@@ -103,7 +109,7 @@ def process_modis(raw_dir, cfg):
 
     all_years = []
     for f in files:
-        print(f"  Processing {os.path.basename(f)} …")
+        print(f"  Processing {os.path.basename(f)}...")
         ds = xr.open_dataset(f)
 
         # Standardize coordinates
@@ -145,11 +151,17 @@ def process_modis(raw_dir, cfg):
         ds.close()
 
     result = xr.concat(all_years, dim="time")
+    # Sort by time, handling potential calendar mismatches
+    result = result.assign_coords(time=result.time.values.astype("datetime64[ns]"))
+    result = result.sortby("time")
+    # Remove duplicates, keeping first occurrence
+    _, unique_indices = np.unique(result.time.values, return_index=True)
+    result = result.isel(time=unique_indices)
     return result
 
 
 # ══════════════════════════════════════════════════════════════════
-# SRTM → slope per grid cell (static)
+# SRTM -> slope per grid cell (static)
 # ══════════════════════════════════════════════════════════════════
 
 def process_srtm(raw_dir, cfg):
@@ -170,12 +182,12 @@ def process_srtm(raw_dir, cfg):
 
 
 # ══════════════════════════════════════════════════════════════════
-# FIRMS → ignition labels + fire history features
+# FIRMS -> ignition labels + fire history features
 # ══════════════════════════════════════════════════════════════════
 
 def process_firms(raw_dir, cfg):
     """
-    Process FIRMS CSV → per-cell per-day:
+    Process FIRMS CSV -> per-cell per-day:
       y(t)         : binary ignition label (1 if any fire, else 0)
       frp_hist(t)  : exponentially decayed sum of FRP over sliding window
       count_hist(t): exponentially decayed count of hotspots over window
@@ -196,7 +208,7 @@ def process_firms(raw_dir, cfg):
     # Read and concatenate all FIRMS CSVs
     dfs = []
     for f in files:
-        print(f"  Processing {os.path.basename(f)} …")
+        print(f"  Processing {os.path.basename(f)}...")
         df = pd.read_csv(f)
         dfs.append(df)
     firms = pd.concat(dfs, ignore_index=True)
@@ -230,7 +242,7 @@ def process_firms(raw_dir, cfg):
     frp_hist   = np.zeros((n_days, n_lat, n_lon), dtype=np.float32)
     count_hist = np.zeros((n_days, n_lat, n_lon), dtype=np.float32)
 
-    # ── Vectorized fire assignment ────────────────────────────────
+    # -- Vectorized fire assignment --------------------------------
     # Filter to valid grid cells and time range
     valid_mask = (
         (firms["lat_idx"] >= 0) & (firms["lat_idx"] < n_lat) &
@@ -249,7 +261,7 @@ def process_firms(raw_dir, cfg):
 
     print(f"  Assigned {len(valid_firms)} fire detections to grid")
 
-    # ── Vectorized sliding-window history (10-100x faster) ────────
+    # -- Vectorized sliding-window history (10-100x faster) --------
     # Build decay weights: [decay^1, decay^2, ..., decay^window]
     decay_weights = decay ** np.arange(1, window + 1)
 
@@ -276,7 +288,7 @@ def process_firms(raw_dir, cfg):
     return result
 
 
-# ── Self-test ─────────────────────────────────────────────────────
+# -- Self-test -----------------------------------------------------
 if __name__ == "__main__":
     import yaml
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -284,7 +296,7 @@ if __name__ == "__main__":
         cfg = yaml.safe_load(f)
     raw_dir = os.path.join(root, cfg["paths"]["raw_data"])
 
-    print("Testing ERA5 processing …")
+    print("Testing ERA5 processing ...")
     try:
         era5 = process_era5(raw_dir, cfg)
         print(f"  ERA5: {dict(era5.dims)}")

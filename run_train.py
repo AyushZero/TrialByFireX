@@ -75,7 +75,7 @@ def main():
     # STEP 1: Load & split data
     # ═══════════════════════════════════════════════════════════
     print("=" * 65)
-    print("STEP 1 · Loading feature dataset")
+    print("STEP 1 . Loading feature dataset")
     print("=" * 65)
 
     df = build_dataset(features_dir)
@@ -93,7 +93,7 @@ def main():
     # STEP 2: Correlation heatmap + distributions
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 2 · Feature analysis")
+    print("STEP 2 . Feature analysis")
     print("=" * 65)
 
     plot_correlation_heatmap(
@@ -109,7 +109,7 @@ def main():
     # STEP 3: SMOTE resampling for class imbalance
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 3 · Class imbalance handling (SMOTE + undersampling)")
+    print("STEP 3 . Class imbalance handling (SMOTE + undersampling)")
     print("=" * 65)
 
     from imblearn.combine import SMOTETomek
@@ -156,7 +156,7 @@ def main():
               f"fire rate={y_train_all_sm.mean()*100:.1f}%")
         use_smote = True
     except Exception as e:
-        print(f"  ⚠ SMOTE failed: {e}, using balanced class weights only")
+        print(f"  [WARN] SMOTE failed: {e}, using balanced class weights only")
         X_train_phys_sm, y_train_phys_sm = X_train_phys, y_train_phys
         X_train_all_sm, y_train_all_sm = X_train_all, y_train_all
         use_smote = False
@@ -165,14 +165,14 @@ def main():
     # STEP 4: Train all models
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 4 · Training models")
+    print("STEP 4 . Training models")
     print("=" * 65)
 
     results = {}
     preds   = {}
 
     # 1. Physics logistic (balanced weights)
-    print("\n─── 1. Physics-Guided Logistic ───")
+    print("\n--- 1. Physics-Guided Logistic ---")
     m1 = train_physics_logistic(X_train_phys, y_train_phys)
     y_p1 = predict_proba(m1, X_test_phys)
     results["Physics Logistic"] = compute_metrics(y_test_phys, y_p1)
@@ -185,7 +185,7 @@ def main():
     save_model(m1, models_dir, "physics_logistic")
 
     # 2. Physics + SMOTE
-    print("\n─── 2. Physics + SMOTE ───")
+    print("\n--- 2. Physics + SMOTE ---")
     m2 = train_physics_logistic(X_train_phys_sm, y_train_phys_sm, C=1.0)
     y_p2 = predict_proba(m2, X_test_phys)
     results["Physics+SMOTE"] = compute_metrics(y_test_phys, y_p2)
@@ -197,7 +197,7 @@ def main():
     save_model(m2, models_dir, "physics_smote")
 
     # 3. Attribute logistic
-    print("\n─── 3. Attribute-Only Logistic ───")
+    print("\n--- 3. Attribute-Only Logistic ---")
     m3 = train_attribute_logistic(X_train_all, y_train_all)
     y_p3 = predict_proba(m3, X_test_all)
     results["Attribute Logistic"] = compute_metrics(y_test_all, y_p3)
@@ -209,7 +209,7 @@ def main():
     save_model(m3, models_dir, "attribute_logistic")
 
     # 4. Random Forest
-    print("\n─── 4. Random Forest ───")
+    print("\n--- 4. Random Forest ---")
     m4 = train_random_forest(X_train_all_sm, y_train_all_sm)
     y_p4 = predict_proba(m4, X_test_all)
     results["Random Forest"] = compute_metrics(y_test_all, y_p4)
@@ -221,7 +221,7 @@ def main():
     save_model(m4, models_dir, "random_forest")
 
     # 5. XGBoost
-    print("\n─── 5. XGBoost ───")
+    print("\n--- 5. XGBoost ---")
     m5 = train_xgboost(X_train_all_sm, y_train_all_sm)
     y_p5 = predict_proba(m5, X_test_all)
     results["XGBoost"] = compute_metrics(y_test_all, y_p5)
@@ -233,7 +233,7 @@ def main():
     save_model(m5, models_dir, "xgboost")
 
     # 5b. LightGBM
-    print("\n─── 5b. LightGBM ───")
+    print("\n--- 5b. LightGBM ---")
     try:
         m5b = train_lightgbm(X_train_all_sm, y_train_all_sm)
         y_p5b = predict_proba(m5b, X_test_all)
@@ -251,7 +251,7 @@ def main():
     # 5c. Optional Hyperparameter Tuning (GridSearchCV)
     tuning_cfg = cfg.get("tuning", {})
     if tuning_cfg.get("enabled", False):
-        print("\n─── 5c. Hyperparameter Tuning (GridSearchCV) ───")
+        print("\n--- 5c. Hyperparameter Tuning (GridSearchCV) ---")
         from sklearn.model_selection import GridSearchCV
         from xgboost import XGBClassifier
 
@@ -296,7 +296,7 @@ def main():
         save_model(m5_tuned, models_dir, "xgboost_tuned")
 
     # 6. Weather-only
-    print("\n─── 6. Weather-Only Logistic ───")
+    print("\n--- 6. Weather-Only Logistic ---")
     m6 = train_weather_logistic(X_train_w, y_train_w)
     y_p6 = predict_proba(m6, X_test_w)
     results["Weather Only"] = compute_metrics(y_test_w, y_p6)
@@ -308,7 +308,7 @@ def main():
     save_model(m6, models_dir, "weather_logistic")
 
     # 7. FWI baseline
-    print("\n─── 7. FWI Baseline ───")
+    print("\n--- 7. FWI Baseline ---")
     from src.fwi import compute_fwi_simple, normalize_fwi
     if all(c in test_df.columns for c in ["t_max", "rh_min", "u10_max"]):
         # Compute FWI for train and test
@@ -346,7 +346,7 @@ def main():
     # STEP 5: Model comparison (with log-loss)
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 5 · Model comparison")
+    print("STEP 5 . Model comparison")
     print("=" * 65)
 
     comp_df = compare_models(results,
@@ -360,7 +360,7 @@ def main():
     # STEP 6: Confusion matrices
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 6 · Confusion matrices")
+    print("STEP 6 . Confusion matrices")
     print("=" * 65)
     for name, (y_t, y_p) in preds.items():
         safe = name.lower().replace(" ", "_").replace("+", "_")
@@ -371,7 +371,7 @@ def main():
     # STEP 7: Threshold + reliability
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 7 · Threshold analysis + reliability")
+    print("STEP 7 . Threshold analysis + reliability")
     print("=" * 65)
     best_t, best_f1 = plot_threshold_analysis(
         y_test_phys, y_p1, model_name="Physics Logistic",
@@ -384,7 +384,7 @@ def main():
     # STEP 8: SHAP analysis
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 8 · SHAP analysis")
+    print("STEP 8 . SHAP analysis")
     print("=" * 65)
     try:
         plot_shap_values(m4, X_test_all, available_raw, "Random Forest",
@@ -392,13 +392,13 @@ def main():
         plot_shap_values(m5, X_test_all, available_raw, "XGBoost",
             save_path=os.path.join(outputs_dir, "shap_xgboost.png"))
     except Exception as e:
-        print(f"  ⚠ SHAP skipped: {e}")
+        print(f"  [WARN] SHAP skipped: {e}")
 
     # ═══════════════════════════════════════════════════════════
     # STEP 9: Ablation study
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 9 · Ablation study")
+    print("STEP 9 . Ablation study")
     print("=" * 65)
 
     import xarray as xr
@@ -445,17 +445,17 @@ def main():
     # STEP 10: Spatial cross-validation
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 10 · Spatial cross-validation")
+    print("STEP 10 . Spatial cross-validation")
     print("=" * 65)
 
     from src.spatial_cv import spatial_kfold
 
-    print("\n  [Physics R_phys – spatial CV]")
+    print("\n  [Physics R_phys - spatial CV]")
     spat_phys, spat_folds = spatial_kfold(
         df, "R_phys", n_folds=5, block_size=2.0)
 
     if available_raw:
-        print("\n  [All features – spatial CV]")
+        print("\n  [All features - spatial CV]")
         spat_all, _ = spatial_kfold(
             df, available_raw, n_folds=5, block_size=2.0)
 
@@ -463,7 +463,7 @@ def main():
     # STEP 11: Seasonal analysis
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 11 · Seasonal + stratified analysis")
+    print("STEP 11 . Seasonal + stratified analysis")
     print("=" * 65)
 
     if "time" in test_df.columns:
@@ -494,10 +494,10 @@ def main():
     # STEP 13: Case study map (Dixie Fire region)
     # ═══════════════════════════════════════════════════════════
     print("\n" + "=" * 65)
-    print("STEP 13 · Case study map (Dixie Fire region)")
+    print("STEP 13 . Case study map (Dixie Fire region)")
     print("=" * 65)
 
-    # Dixie Fire: July 2021, ~40.0°N, -121.4°W
+    # Dixie Fire: July 2021, ~40.0 degN, -121.4 degW
     dixie_lat, dixie_lon = 40.0, -121.4
     dixie_date = "2021-07-15"
 
@@ -513,7 +513,7 @@ def main():
             prob_day, gi["lats"], gi["lons"],
             date_str=dixie_date,
             title=f"Case Study: Dixie Fire Region — {dixie_date}\n"
-                  f"★ Dixie Fire origin: ({dixie_lat}°N, {dixie_lon}°W)",
+                  f"[STAR] Dixie Fire origin: ({dixie_lat} degN, {dixie_lon} degW)",
             save_path=os.path.join(outputs_dir, "case_study_dixie_fire.png"),
         )
 

@@ -1,5 +1,5 @@
 """
-🔥 TrialsByFireX – Wildfire Ignition Probability Dashboard
+🔥 TrialsByFireX - Wildfire Ignition Probability Dashboard
 Streamlit interactive dashboard for the physics-guided ignition model.
 
 Launch: streamlit run dashboard.py
@@ -16,15 +16,15 @@ from plotly.subplots import make_subplots
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
-# ── Page config ──────────────────────────────────────────────────
+# -- Page config --------------------------------------------------
 st.set_page_config(
-    page_title="TrialsByFireX – Wildfire Ignition Probability",
+    page_title="TrialsByFireX - Wildfire Ignition Probability",
     page_icon="🔥",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ───────────────────────────────────────────────────
+# -- Custom CSS ---------------------------------------------------
 st.markdown("""
 <style>
     .main { background-color: #0e1117; }
@@ -38,7 +38,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# ── Data loading ─────────────────────────────────────────────────
+# -- Data loading -------------------------------------------------
 @st.cache_data
 def load_config():
     with open(os.path.join(ROOT, "config.yaml")) as f:
@@ -68,7 +68,7 @@ def load_model(name):
     return None
 
 
-# ── Sidebar ──────────────────────────────────────────────────────
+# -- Sidebar ------------------------------------------------------
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/fire-element.png", width=60)
     st.title("🔥 TrialsByFireX")
@@ -78,13 +78,13 @@ with st.sidebar:
     cfg = load_config()
     st.subheader("📍 Study Region")
     st.write(f"**{cfg['region']['name']}**")
-    st.write(f"Lat: {cfg['region']['lat_min']}° – {cfg['region']['lat_max']}°")
-    st.write(f"Lon: {cfg['region']['lon_min']}° – {cfg['region']['lon_max']}°")
+    st.write(f"Lat: {cfg['region']['lat_min']} deg - {cfg['region']['lat_max']} deg")
+    st.write(f"Lon: {cfg['region']['lon_min']} deg - {cfg['region']['lon_max']} deg")
 
     st.subheader("⏱ Time Range")
-    st.write(f"{cfg['time']['start']} → {cfg['time']['end']}")
+    st.write(f"{cfg['time']['start']} [RIGHT] {cfg['time']['end']}")
 
-    st.subheader("⚙ Physics Weights")
+    st.subheader("[CONFIG] Physics Weights")
     st.json({
         "α (dryness)": cfg["alpha"],
         "β (spread)": cfg["beta"],
@@ -95,11 +95,11 @@ with st.sidebar:
     st.caption("Built for college research project")
 
 
-# ── Main content ─────────────────────────────────────────────────
+# -- Main content -------------------------------------------------
 st.title("🔥 Wildfire Ignition Probability Dashboard")
 st.markdown("**Physics-Guided Modelling using ERA5, MODIS, SRTM & FIRMS**")
 
-# ── Tab layout ───────────────────────────────────────────────────
+# -- Tab layout ---------------------------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Model Comparison",
     "🗺️ Probability Map",
@@ -133,7 +133,7 @@ with tab1:
 
         # Bar chart
         fig = make_subplots(rows=1, cols=3,
-                            subplot_titles=["AUC-ROC ↑", "AUC-PR ↑", "Brier Score ↓"])
+                            subplot_titles=["AUC-ROC [UP]", "AUC-PR [UP]", "Brier Score [DOWN]"])
 
         colors = px.colors.qualitative.Set2[:len(comp_df)]
 
@@ -152,7 +152,7 @@ with tab1:
             )
 
         fig.update_layout(height=400, template="plotly_dark",
-                          title_text="Model Comparison – Test Set")
+                          title_text="Model Comparison - Test Set")
         st.plotly_chart(fig, use_container_width=True)
 
         # Table
@@ -176,7 +176,7 @@ with tab1:
             c2.image(pr_path, caption="Precision-Recall Curves")
 
     else:
-        st.warning("⚠ No model comparison data found. Run `python run_train.py` first.")
+        st.warning("[WARN] No model comparison data found. Run `python run_train.py` first.")
 
 
 # ════════════════════════════════════════════════════════════════
@@ -246,10 +246,10 @@ with tab2:
 
             # High-risk cells
             if np.any(prob_grid > threshold):
-                st.warning(f"⚠ {np.sum(prob_grid > threshold)} cells above "
+                st.warning(f"[WARN] {np.sum(prob_grid > threshold)} cells above "
                            f"threshold ({threshold})")
     else:
-        st.warning("⚠ Run `python run_preprocess.py --synthetic` and "
+        st.warning("[WARN] Run `python run_preprocess.py --synthetic` and "
                    "`python run_train.py` first.")
 
 
@@ -353,14 +353,14 @@ with tab5:
     |--------|---------|------------------|
     | **F_avail** | NDVI̅(t) | Live fuel biomass |
     | **F_dry** | α₁(1−NDWI̅) + α₂(1−RH̅) + α₃(1−SM̅) | Fuel dryness |
-    | **G_spread** | 1 + β₁·U̅ + β₂·θ̅ | Wind-slope spread |
-    | **H_history** | γ₁·FRP̅ₕᵢₛₜ + γ₂·Count̅ₕᵢₛₜ | Recent fire activity |
+    | **G_spread** | 1 + β₁.U̅ + β₂.θ̅ | Wind-slope spread |
+    | **H_history** | γ₁.FRP̅ₕᵢₛₜ + γ₂.Count̅ₕᵢₛₜ | Recent fire activity |
 
     ### Risk Index
-    **R_phys(t) = T̅(t) · F_avail · F_dry · G_spread + H_history**
+    **R_phys(t) = T̅(t) . F_avail . F_dry . G_spread + H_history**
 
     ### Probability
-    **p_ign(t) = σ(a · R_phys + b)**
+    **p_ign(t) = σ(a . R_phys + b)**
     """)
 
     # Interactive physics calculator
@@ -425,7 +425,7 @@ with tab5:
         st.image(ts_path, caption="Spatial-mean R_phys vs fire rate over test period")
 
 
-# ── Footer ───────────────────────────────────────────────────────
+# -- Footer -------------------------------------------------------
 st.markdown("---")
 st.markdown(
     "<center><small>TrialsByFireX — Physics-Guided Ignition Probability Modelling "

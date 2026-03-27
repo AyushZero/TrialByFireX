@@ -1,1 +1,1 @@
-"""TrialsByFireX – Physics-Guided Ignition Probability Modelling."""
+"""TrialsByFireX - Physics-Guided Ignition Probability Modelling."""

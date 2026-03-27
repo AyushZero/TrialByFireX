@@ -1,5 +1,5 @@
 """
-Inference – operational pipeline for daily ignition probability.
+Inference - operational pipeline for daily ignition probability.
 
 Given a trained model and latest data, compute R_phys(T) and p_ign(T)
 for each grid cell.
@@ -20,21 +20,21 @@ def run_inference(date_str, cfg, model_dir, norm_params_path, output_dir):
     Steps:
     1. Load latest data (ERA5 + MODIS + FIRMS history up to date-1)
     2. Normalise using stored parameters
-    3. Compute physics features → R_phys
-    4. Apply logistic model → p_ign
+    3. Compute physics features -> R_phys
+    4. Apply logistic model -> p_ign
     5. Write output probability raster
 
     Parameters
     ----------
-    date_str : str – "YYYY-MM-DD"
-    cfg : dict – config
-    model_dir : str – path to saved model
-    norm_params_path : str – path to norm params JSON
-    output_dir : str – where to write output files
+    date_str : str - "YYYY-MM-DD"
+    cfg : dict - config
+    model_dir : str - path to saved model
+    norm_params_path : str - path to norm params JSON
+    output_dir : str - where to write output files
 
     Returns
     -------
-    prob_grid : xr.DataArray – probability of ignition per cell
+    prob_grid : xr.DataArray - probability of ignition per cell
     """
     from src.grid import grid_info
 
@@ -48,8 +48,8 @@ def run_inference(date_str, cfg, model_dir, norm_params_path, output_dir):
 
     # In a real pipeline, load actual data here.
     # For demonstration, we generate placeholder data:
-    print(f"  Running inference for {date_str} …")
-    print(f"  Grid: {n_lat} × {n_lon} cells")
+    print(f"  Running inference for {date_str} ...")
+    print(f"  Grid: {n_lat} x {n_lon} cells")
 
     # Placeholder: load from features directory
     features_dir = os.path.join(os.path.dirname(model_dir), "data", "features")
@@ -88,7 +88,7 @@ def run_inference(date_str, cfg, model_dir, norm_params_path, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     outpath = os.path.join(output_dir, f"p_ign_{date_str}.nc")
     result.to_netcdf(outpath)
-    print(f"  ✓ Probability map → {outpath}")
+    print(f"  [OK] Probability map -> {outpath}")
 
     return result
 
@@ -123,4 +123,4 @@ def write_geotiff(prob_da, output_path):
     ) as dst:
         dst.write(data, 1)
 
-    print(f"  ✓ GeoTIFF → {output_path}")
+    print(f"  [OK] GeoTIFF -> {output_path}")

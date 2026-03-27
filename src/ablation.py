@@ -1,14 +1,14 @@
 """
-Ablation study – systematically removes one physics factor at a time
+Ablation study - systematically removes one physics factor at a time
 from R_phys to measure each component's contribution.
 
 Ablation variants:
-  Full:        R = T~ · F_avail · F_dry · G_spread + H_history
-  No F_avail:  R = T~ · 1.0    · F_dry · G_spread + H_history
-  No F_dry:    R = T~ · F_avail · 1.0  · G_spread + H_history
-  No G_spread: R = T~ · F_avail · F_dry · 1.0     + H_history
-  No H_history:R = T~ · F_avail · F_dry · G_spread + 0.0
-  No T:        R = 1  · F_avail · F_dry · G_spread + H_history
+  Full:        R = T~ . F_avail . F_dry . G_spread + H_history
+  No F_avail:  R = T~ . 1.0    . F_dry . G_spread + H_history
+  No F_dry:    R = T~ . F_avail . 1.0  . G_spread + H_history
+  No G_spread: R = T~ . F_avail . F_dry . 1.0     + H_history
+  No H_history:R = T~ . F_avail . F_dry . G_spread + 0.0
+  No T:        R = 1  . F_avail . F_dry . G_spread + H_history
 """
 
 import numpy as np
@@ -32,14 +32,14 @@ def run_ablation(normed_data, y_train, y_test, train_mask, test_mask, cfg):
 
     Parameters
     ----------
-    normed_data : dict of str → flat arrays
+    normed_data : dict of str -> flat arrays
     y_train, y_test : 1D arrays
     train_mask, test_mask : bool arrays (for indexing flat data)
     cfg : dict with alpha, beta, gamma
 
     Returns
     -------
-    results : dict of variant_name → metrics dict
+    results : dict of variant_name -> metrics dict
     """
     alpha = cfg["alpha"]
     beta = cfg["beta"]
@@ -146,7 +146,7 @@ def plot_ablation(results, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Ablation plot → {save_path}")
+        print(f"  [OK] Ablation plot -> {save_path}")
     plt.close(fig)
 
     return df

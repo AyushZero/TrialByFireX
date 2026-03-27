@@ -1,5 +1,5 @@
 """
-Dataset assembly – builds flat DataFrames from gridded features
+Dataset assembly - builds flat DataFrames from gridded features
 and splits by year for model training/evaluation.
 """
 
@@ -48,7 +48,7 @@ def build_dataset(features_dir):
 
 def split_by_year(df, train_years, val_years, test_years):
     """
-    Temporal train/validation/test split – no leakage.
+    Temporal train/validation/test split - no leakage.
 
     Parameters
     ----------
@@ -79,7 +79,7 @@ def get_Xy(df, feature_col="R_phys", label_col="ignition"):
     return X, y
 
 
-# ── Self-test ─────────────────────────────────────────────────────
+# -- Self-test -----------------------------------------------------
 if __name__ == "__main__":
     # Quick test with dummy data
     n = 1000
@@ -92,4 +92,4 @@ if __name__ == "__main__":
     })
     df["year"] = df["time"].dt.year
     train, val, test = split_by_year(df, [2021], [2022], [2023])
-    print("Dataset self-test passed ✓")
+    print("Dataset self-test passed [OK]")

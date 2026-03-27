@@ -1,5 +1,5 @@
 """
-Advanced analysis – SHAP values, confusion matrix, correlation heatmap,
+Advanced analysis - SHAP values, confusion matrix, correlation heatmap,
 threshold analysis, seasonal breakdown, cross-validated weight tuning,
 and spatial autocorrelation.
 """
@@ -52,7 +52,7 @@ def plot_confusion_matrix(y_true, y_prob, model_name="Model",
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Confusion matrix → {save_path}")
+        print(f"  [OK] Confusion matrix -> {save_path}")
     plt.close(fig)
 
 
@@ -105,7 +105,7 @@ def plot_shap_values(model, X, feature_names, model_name="Model",
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ SHAP values → {save_path}")
+        print(f"  [OK] SHAP values -> {save_path}")
     plt.close(fig)
 
 
@@ -134,7 +134,7 @@ def plot_correlation_heatmap(df, features, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Correlation heatmap → {save_path}")
+        print(f"  [OK] Correlation heatmap -> {save_path}")
     plt.close(fig)
 
 
@@ -180,7 +180,7 @@ def plot_threshold_analysis(y_true, y_prob, model_name="Model",
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Threshold analysis → {save_path}")
+        print(f"  [OK] Threshold analysis -> {save_path}")
     plt.close(fig)
 
     return best_t, best_f1
@@ -283,7 +283,7 @@ def seasonal_analysis(df, y_prob, model_name="Model", save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Seasonal analysis → {save_path}")
+        print(f"  [OK] Seasonal analysis -> {save_path}")
     plt.close(fig)
 
     return monthly_df, seasonal_df
@@ -300,7 +300,7 @@ def tune_physics_weights(normed_data, firms_ignition, cfg, val_mask=None):
 
     Parameters
     ----------
-    normed_data : dict of str → ndarray (flattened)
+    normed_data : dict of str -> ndarray (flattened)
     firms_ignition : ndarray (flattened)
     cfg : dict
     val_mask : bool ndarray (which samples are validation)
@@ -409,11 +409,11 @@ def compute_morans_I(residuals_grid):
 
     Parameters
     ----------
-    residuals_grid : 2D ndarray (lat, lon) – mean residuals per cell
+    residuals_grid : 2D ndarray (lat, lon) - mean residuals per cell
 
     Returns
     -------
-    I : float – Moran's I statistic
+    I : float - Moran's I statistic
     """
     from scipy.ndimage import uniform_filter
 
@@ -421,7 +421,7 @@ def compute_morans_I(residuals_grid):
     r_mean = np.nanmean(r)
     r_centered = r - r_mean
 
-    # Spatial lag via 3×3 neighbourhood average
+    # Spatial lag via 3x3 neighbourhood average
     spatial_lag = uniform_filter(r_centered, size=3, mode="constant")
 
     numerator = np.nansum(r_centered * spatial_lag)
@@ -436,8 +436,8 @@ def compute_morans_I(residuals_grid):
         I = 0.0
 
     print(f"  Moran's I: {I:.4f}")
-    print(f"    I ≈ 0 → no spatial autocorrelation")
-    print(f"    I > 0 → positive autocorrelation (clustered errors)")
-    print(f"    I < 0 → negative autocorrelation (dispersed errors)")
+    print(f"    I ~ 0 -> no spatial autocorrelation")
+    print(f"    I > 0 -> positive autocorrelation (clustered errors)")
+    print(f"    I < 0 -> negative autocorrelation (dispersed errors)")
 
     return I

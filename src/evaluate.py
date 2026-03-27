@@ -2,10 +2,10 @@
 Evaluation metrics and diagnostic plots.
 
 Metrics
-───────
-  • AUC-ROC  – discrimination under class imbalance
-  • AUC-PR   – performance on rare positive events
-  • Brier score – calibration quality
+-------
+  • AUC-ROC  - discrimination under class imbalance
+  • AUC-PR   - performance on rare positive events
+  • Brier score - calibration quality
   • Reliability diagram
   • Hit rate vs false-alarm rate by strata (slope, NDVI)
 """
@@ -123,7 +123,7 @@ def compute_metrics(y_true, y_prob, threshold=0.5):
 
 def print_metrics(name, metrics):
     """Pretty-print a metrics dict."""
-    print(f"\n  {'─'*40}")
+    print(f"\n  {'-'*40}")
     print(f"  Model: {name}")
     for k, v in metrics.items():
         print(f"    {k:>15s}: {v:.4f}")
@@ -140,7 +140,7 @@ def compare_models(results_dict, save_path=None):
     Parameters
     ----------
     results_dict : dict[str, dict]
-        model_name → metrics dict
+        model_name -> metrics dict
 
     Returns
     -------
@@ -154,7 +154,7 @@ def compare_models(results_dict, save_path=None):
     print(df.to_string())
     if save_path:
         df.to_csv(save_path)
-        print(f"  ✓ Saved comparison → {save_path}")
+        print(f"  [OK] Saved comparison -> {save_path}")
     return df
 
 
@@ -184,7 +184,7 @@ def plot_roc_curves(results, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150)
-        print(f"  ✓ ROC plot → {save_path}")
+        print(f"  [OK] ROC plot -> {save_path}")
     plt.close(fig)
 
 
@@ -203,7 +203,7 @@ def plot_pr_curves(results, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150)
-        print(f"  ✓ PR plot → {save_path}")
+        print(f"  [OK] PR plot -> {save_path}")
     plt.close(fig)
 
 
@@ -251,7 +251,7 @@ def reliability_diagram(y_true, y_prob, n_bins=10, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150)
-        print(f"  ✓ Reliability diagram → {save_path}")
+        print(f"  [OK] Reliability diagram -> {save_path}")
     plt.close(fig)
 
 
@@ -297,11 +297,11 @@ def performance_by_strata(y_true, y_prob, strata, strata_name="strata",
     return df
 
 
-# ── Self-test ─────────────────────────────────────────────────────
+# -- Self-test -----------------------------------------------------
 if __name__ == "__main__":
     np.random.seed(0)
     y_true = np.random.choice([0, 1], 200, p=[0.9, 0.1])
     y_prob = np.clip(y_true * 0.7 + np.random.rand(200) * 0.3, 0, 1)
     m = compute_metrics(y_true, y_prob)
     print_metrics("test", m)
-    print("Evaluate self-test passed ✓")
+    print("Evaluate self-test passed [OK]")

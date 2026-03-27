@@ -27,7 +27,7 @@ def load_config():
     with open(os.path.join(ROOT, "config.yaml")) as f:
         return yaml.safe_load(f)
 
-# ── Synthetic data ───────────────────────────────────────────────
+# Synthetic data
 def generate_synthetic_era5(cfg):
     """
     Create synthetic ERA5-like NetCDF files for pipeline testing.
@@ -130,7 +130,7 @@ def generate_synthetic_era5(cfg):
     print("  Done generating synthetic ERA5 data.")
 
 
-# ── Real ERA5 download via CDS API ───────────────────────────────
+# Real ERA5 download via CDS API
 def download_era5(cfg):
     """
     Download ERA5 data via Copernicus Climate Data Store API.
@@ -212,7 +212,7 @@ def download_era5(cfg):
     print("Done. All ERA5 NetCDF chunks are completely ready for preprocessing.")
 
 
-# ── CLI ───────────────────────────────────────────────────────────
+# -- CLI -----------------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download ERA5 reanalysis data")
     parser.add_argument("--synthetic", action="store_true",

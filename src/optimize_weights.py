@@ -282,7 +282,7 @@ def compare_with_defaults(normed_data, y_train, y_val, train_mask, val_mask, cfg
     }
 
 
-# ── Self-test ─────────────────────────────────────────────────────
+# -- Self-test -----------------------------------------------------
 if __name__ == "__main__":
     print("Weight optimization module loaded successfully.")
     print("Usage: from src.optimize_weights import optimize_weights")

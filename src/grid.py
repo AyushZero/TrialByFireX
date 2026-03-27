@@ -1,5 +1,5 @@
 """
-Grid builder – creates a regular 0.25° lat/lon grid and provides
+Grid builder - creates a regular 0.25 deg lat/lon grid and provides
 utilities to assign point data (lat/lon) to grid cells.
 """
 
@@ -13,8 +13,8 @@ def build_grid(lat_min, lat_max, lon_min, lon_max, resolution=0.25):
 
     Returns
     -------
-    lats : ndarray – cell-centre latitudes
-    lons : ndarray – cell-centre longitudes
+    lats : ndarray - cell-centre latitudes
+    lons : ndarray - cell-centre longitudes
     """
     lats = np.arange(lat_min + resolution / 2, lat_max, resolution)
     lons = np.arange(lon_min + resolution / 2, lon_max, resolution)
@@ -28,7 +28,7 @@ def assign_to_grid(lat, lon, lat_min, lon_min, resolution=0.25):
     Parameters
     ----------
     lat, lon : float or array-like
-    lat_min, lon_min : float – grid origin
+    lat_min, lon_min : float - grid origin
     resolution : float
 
     Returns
@@ -59,13 +59,13 @@ def grid_info(cfg):
     }
 
 
-# ── Self-test ─────────────────────────────────────────────────────
+# -- Self-test -----------------------------------------------------
 if __name__ == "__main__":
     lats, lons = build_grid(32, 42, -124, -114, 0.25)
-    print(f"Grid: {len(lats)} lat × {len(lons)} lon = {len(lats)*len(lons)} cells")
-    print(f"Lat range: {lats[0]:.2f} – {lats[-1]:.2f}")
-    print(f"Lon range: {lons[0]:.2f} – {lons[-1]:.2f}")
+    print(f"Grid: {len(lats)} lat x {len(lons)} lon = {len(lats)*len(lons)} cells")
+    print(f"Lat range: {lats[0]:.2f} - {lats[-1]:.2f}")
+    print(f"Lon range: {lons[0]:.2f} - {lons[-1]:.2f}")
 
     # Test point assignment
     li, lo = assign_to_grid(36.5, -119.2, 32, -124, 0.25)
-    print(f"Point (36.5, -119.2) → cell ({li}, {lo})")
+    print(f"Point (36.5, -119.2) -> cell ({li}, {lo})")

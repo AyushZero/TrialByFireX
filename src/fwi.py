@@ -1,5 +1,5 @@
 """
-Canadian Fire Weather Index (FWI) – simplified implementation.
+Canadian Fire Weather Index (FWI) - simplified implementation.
 
 Computes a weather-only fire danger index from ERA5 variables as a
 baseline comparison for the physics-guided R_phys.
@@ -17,15 +17,15 @@ import numpy as np
 def compute_ffmc(temp_C, rh, wind_kmh, precip_mm, ffmc_prev=85.0):
     """
     Fine Fuel Moisture Code (simplified).
-    Tracks moisture in fine surface fuels (1–2 cm litter).
+    Tracks moisture in fine surface fuels (1-2 cm litter).
 
     Parameters
     ----------
-    temp_C : float/array – temperature (°C)
-    rh : float/array – relative humidity (%)
-    wind_kmh : float/array – wind speed (km/h)
-    precip_mm : float/array – 24h precipitation (mm)
-    ffmc_prev : float – previous day FFMC (default 85 = standard start)
+    temp_C : float/array - temperature ( degC)
+    rh : float/array - relative humidity (%)
+    wind_kmh : float/array - wind speed (km/h)
+    precip_mm : float/array - 24h precipitation (mm)
+    ffmc_prev : float - previous day FFMC (default 85 = standard start)
     """
     mo = 147.2 * (101.0 - ffmc_prev) / (59.5 + ffmc_prev)
 
@@ -60,7 +60,7 @@ def compute_ffmc(temp_C, rh, wind_kmh, precip_mm, ffmc_prev=85.0):
 
 def compute_isi(ffmc, wind_kmh):
     """
-    Initial Spread Index – combines FFMC with wind.
+    Initial Spread Index - combines FFMC with wind.
     """
     fm = 147.2 * (101.0 - ffmc) / (59.5 + ffmc)
     sf = 19.115 * np.exp(-0.1386 * fm) * (1.0 + fm ** 5.31 / (4.93e7))
@@ -78,16 +78,16 @@ def compute_fwi_simple(temp_C, rh, wind_ms, precip_mm):
 
     Parameters
     ----------
-    temp_C : array – daily max temperature (°C)
-    rh : array – daily min relative humidity (%)
-    wind_ms : array – daily max wind speed (m/s)
-    precip_mm : array – daily total precipitation (mm)
+    temp_C : array - daily max temperature ( degC)
+    rh : array - daily min relative humidity (%)
+    wind_ms : array - daily max wind speed (m/s)
+    precip_mm : array - daily total precipitation (mm)
 
     Returns
     -------
-    fwi : array – fire weather index (higher = more dangerous)
+    fwi : array - fire weather index (higher = more dangerous)
     """
-    wind_kmh = wind_ms * 3.6  # m/s → km/h
+    wind_kmh = wind_ms * 3.6  # m/s -> km/h
 
     # Compute FFMC (single-day approximation starting from standard 85)
     ffmc = compute_ffmc(temp_C, rh, wind_kmh, precip_mm, ffmc_prev=85.0)
@@ -113,17 +113,17 @@ def normalize_fwi(fwi):
     return (fwi - fmin) / (fmax - fmin)
 
 
-# ── Self-test ─────────────────────────────────────────────────────
+# -- Self-test -----------------------------------------------------
 if __name__ == "__main__":
     # Test with typical summer California conditions
-    t = np.array([35.0, 20.0, 40.0, 15.0])   # °C
+    t = np.array([35.0, 20.0, 40.0, 15.0])   #  degC
     rh = np.array([15.0, 60.0, 10.0, 80.0])   # %
     w = np.array([8.0, 2.0, 12.0, 1.0])       # m/s
     p = np.array([0.0, 5.0, 0.0, 10.0])       # mm
 
     fwi = compute_fwi_simple(t, rh, w, p)
     print(f"FWI values: {fwi.round(2)}")
-    print(f"  Hot+dry+windy → FWI={fwi[2]:.1f} (should be highest)")
-    print(f"  Cool+wet+calm → FWI={fwi[3]:.1f} (should be lowest)")
+    print(f"  Hot+dry+windy -> FWI={fwi[2]:.1f} (should be highest)")
+    print(f"  Cool+wet+calm -> FWI={fwi[3]:.1f} (should be lowest)")
     assert fwi[2] > fwi[3], "FWI should be higher for hot/dry conditions"
-    print("FWI self-test passed ✓")
+    print("FWI self-test passed [OK]")

@@ -1,8 +1,8 @@
 """
-Spatial cross-validation – block-based spatial splits to ensure
+Spatial cross-validation - block-based spatial splits to ensure
 the model generalizes geographically.
 
-Divides the study region into spatial blocks (e.g., 2° × 2°) and
+Divides the study region into spatial blocks (e.g., 2 deg x 2 deg) and
 hold out entire blocks for validation/testing.
 """
 
@@ -19,7 +19,7 @@ def create_spatial_blocks(df, block_size=2.0):
     Parameters
     ----------
     df : DataFrame with 'latitude' and 'longitude'
-    block_size : float – block width in degrees
+    block_size : float - block width in degrees
 
     Returns
     -------
@@ -30,7 +30,7 @@ def create_spatial_blocks(df, block_size=2.0):
     lon_block = (df["longitude"] // block_size).astype(int)
     df["block_id"] = lat_block.astype(str) + "_" + lon_block.astype(str)
     n_blocks = df["block_id"].nunique()
-    print(f"  Spatial blocks: {n_blocks} blocks of ~{block_size}° × {block_size}°")
+    print(f"  Spatial blocks: {n_blocks} blocks of ~{block_size} deg x {block_size} deg")
     return df
 
 
@@ -45,7 +45,7 @@ def spatial_kfold(df, feature_col, label_col="ignition", n_folds=5,
     Parameters
     ----------
     df : DataFrame
-    feature_col : str or list – feature column(s)
+    feature_col : str or list - feature column(s)
     label_col : str
     n_folds : int
     block_size : float
@@ -116,8 +116,8 @@ def spatial_kfold(df, feature_col, label_col="ignition", n_folds=5,
         "log_loss_std": fold_df["log_loss"].std(),
     }
     print(f"\n  Spatial CV summary:")
-    print(f"    AUC-ROC: {summary['auc_roc_mean']:.4f} ± {summary['auc_roc_std']:.4f}")
-    print(f"    AUC-PR:  {summary['auc_pr_mean']:.4f} ± {summary['auc_pr_std']:.4f}")
-    print(f"    LogLoss: {summary['log_loss_mean']:.4f} ± {summary['log_loss_std']:.4f}")
+    print(f"    AUC-ROC: {summary['auc_roc_mean']:.4f} +/- {summary['auc_roc_std']:.4f}")
+    print(f"    AUC-PR:  {summary['auc_pr_mean']:.4f} +/- {summary['auc_pr_std']:.4f}")
+    print(f"    LogLoss: {summary['log_loss_mean']:.4f} +/- {summary['log_loss_std']:.4f}")
 
     return summary, fold_df

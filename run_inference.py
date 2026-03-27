@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Inference runner – compute daily ignition probability map.
+Inference runner - compute daily ignition probability map.
 
 Usage:
     python run_inference.py --date 2023-06-15

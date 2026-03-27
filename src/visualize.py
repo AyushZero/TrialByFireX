@@ -1,5 +1,5 @@
 """
-Visualization – maps, curves, and diagnostic plots for the
+Visualization - maps, curves, and diagnostic plots for the
 ignition probability modelling project.
 """
 
@@ -20,11 +20,11 @@ def plot_probability_map(prob_grid, lats, lons, date_str="",
     ----------
     prob_grid : 2D ndarray (n_lat, n_lon)
     lats, lons : 1D arrays
-    date_str : str – for title
+    date_str : str - for title
     """
     fig, ax = plt.subplots(figsize=(12, 8))
 
-    # Custom colormap: green → yellow → orange → red
+    # Custom colormap: green -> yellow -> orange -> red
     colors = ["#2d6a4f", "#95d5b2", "#ffff3f", "#ff9f1c", "#e63946"]
     cmap = mcolors.LinearSegmentedColormap.from_list("fire_risk", colors)
 
@@ -52,7 +52,7 @@ def plot_probability_map(prob_grid, lats, lons, date_str="",
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Probability map → {save_path}")
+        print(f"  [OK] Probability map -> {save_path}")
     plt.close(fig)
 
 
@@ -92,7 +92,7 @@ def plot_feature_distributions(df, features=None, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Feature distributions → {save_path}")
+        print(f"  [OK] Feature distributions -> {save_path}")
     plt.close(fig)
 
 
@@ -121,7 +121,7 @@ def plot_R_phys_timeseries(dates, R_phys_mean, y_mean=None, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ R_phys timeseries → {save_path}")
+        print(f"  [OK] R_phys timeseries -> {save_path}")
     plt.close(fig)
 
 
@@ -129,7 +129,7 @@ def plot_model_comparison_bar(comparison_df, save_path=None):
     """Bar chart comparing models across all metrics."""
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     metrics = ["auc_roc", "auc_pr", "brier_score"]
-    titles  = ["AUC-ROC ↑", "AUC-PR ↑", "Brier Score ↓"]
+    titles  = ["AUC-ROC [UP]", "AUC-PR [UP]", "Brier Score [DOWN]"]
     colors  = ["#2196F3", "#4CAF50", "#FF9800"]
 
     for ax, metric, title, color in zip(axes, metrics, titles, colors):
@@ -145,5 +145,5 @@ def plot_model_comparison_bar(comparison_df, save_path=None):
     plt.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        print(f"  ✓ Model comparison → {save_path}")
+        print(f"  [OK] Model comparison -> {save_path}")
     plt.close(fig)

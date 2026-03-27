@@ -1,9 +1,9 @@
 """
-Models – logistic regression (physics-guided & attribute-only) and
+Models - logistic regression (physics-guided & attribute-only) and
 Random Forest baseline.
 
 Physics-guided model:
-    p_ign(t) = σ(a · R_phys(t) + b)
+    p_ign(t) = σ(a . R_phys(t) + b)
     where σ is the sigmoid function.
 
 Trained via binary cross-entropy (maximum likelihood).
@@ -25,12 +25,12 @@ def train_physics_logistic(X_train, y_train, C=1.0):
     """
     Logistic regression on the single physics-guided feature R_phys.
 
-    p_ign = σ(a · R_phys + b)
+    p_ign = σ(a . R_phys + b)
 
     Parameters
     ----------
-    X_train : ndarray (n, 1) – R_phys values
-    y_train : ndarray (n,)   – binary labels
+    X_train : ndarray (n, 1) - R_phys values
+    y_train : ndarray (n,)   - binary labels
 
     Returns
     -------
@@ -76,7 +76,7 @@ def train_random_forest(X_train, y_train, n_estimators=200, max_depth=10):
     Parameters
     ----------
     n_estimators : int
-    max_depth : int – limit depth to avoid overfitting
+    max_depth : int - limit depth to avoid overfitting
 
     Returns
     -------
@@ -236,12 +236,12 @@ def predict_proba(model, X):
 
     Returns
     -------
-    probabilities : ndarray (n,) – P(ignition=1)
+    probabilities : ndarray (n,) - P(ignition=1)
     """
     return model.predict_proba(X)[:, 1]
 
 
-# ── Self-test ─────────────────────────────────────────────────────
+# -- Self-test -----------------------------------------------------
 if __name__ == "__main__":
     np.random.seed(0)
     n = 500
@@ -252,4 +252,4 @@ if __name__ == "__main__":
     p = predict_proba(m, X)
     assert p.shape == (n,)
     assert 0 <= p.min() and p.max() <= 1
-    print("Models self-test passed ✓")
+    print("Models self-test passed [OK]")

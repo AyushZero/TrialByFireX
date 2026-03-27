@@ -4,13 +4,12 @@ Download SRTM DEM and compute slope for the study region.
 
 In real mode:
   - Downloads SRTM 30m tiles from NASA Earthdata (SRTMGL1.003).
-  - Computes slope in degrees and resamples to 0.25° grid.
+  - Computes slope in degrees and resamples to 0.25 degree grid.
 
 In synthetic mode:
   - Generates plausible terrain slope values for California.
 
-Usage
-─────
+Usage:
     python scripts/download_srtm.py                 # real download
     python scripts/download_srtm.py --synthetic      # demo data
 """
@@ -27,7 +26,7 @@ def load_config():
         return yaml.safe_load(f)
 
 
-# ── Real SRTM download ──────────────────────────────────────────
+# Real SRTM download
 def download_srtm(cfg):
     """
     Download SRTM tiles and compute slope.
@@ -37,28 +36,28 @@ def download_srtm(cfg):
     or use the opentopography.org API.
     """
     print("""
-    ┌──────────────────────────────────────────────────────────┐
-    │ SRTM REAL DOWNLOAD                                       │
-    │                                                          │
-    │ Options for obtaining SRTM DEM:                           │
-    │                                                          │
-    │ 1. NASA Earthdata (SRTMGL1):                             │
-    │    https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/     │
-    │    Requires Earthdata login.                             │
-    │                                                          │
-    │ 2. OpenTopography API (easier):                          │
-    │    GET https://portal.opentopography.org/API/globaldem   │
-    │    ?demtype=SRTMGL1&south=32&north=42&west=-124&east=-114│
-    │    &outputFormat=GTiff&API_Key=<your-key>                │
-    │                                                          │
-    │ 3. CGIAR-CSI (no login):                                 │
-    │    https://srtm.csi.cgiar.org/                           │
-    │                                                          │
-    │ Place the GeoTIFF DEM in data/raw/srtm/srtm_dem.tif      │
-    │ then re-run this script (it will compute slope).          │
-    │                                                          │
-    │ For now, use --synthetic flag for testing.                │
-    └──────────────────────────────────────────────────────────┘
+    +--------------------------------------------------------------+
+    | SRTM REAL DOWNLOAD                                           |
+    |                                                              |
+    | Options for obtaining SRTM DEM:                              |
+    |                                                              |
+    | 1. NASA Earthdata (SRTMGL1):                                 |
+    |    https://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/         |
+    |    Requires Earthdata login.                                 |
+    |                                                              |
+    | 2. OpenTopography API (easier):                              |
+    |    GET https://portal.opentopography.org/API/globaldem       |
+    |    ?demtype=SRTMGL1&south=32&north=42&west=-124&east=-114    |
+    |    &outputFormat=GTiff&API_Key=<your-key>                    |
+    |                                                              |
+    | 3. CGIAR-CSI (no login):                                     |
+    |    https://srtm.csi.cgiar.org/                               |
+    |                                                              |
+    | Place the GeoTIFF DEM in data/raw/srtm/srtm_dem.tif          |
+    | then re-run this script (it will compute slope).              |
+    |                                                              |
+    | For now, use --synthetic flag for testing.                    |
+    +--------------------------------------------------------------+
     """)
 
     # If DEM files exist (even multiple chunks), compute slope
@@ -99,7 +98,7 @@ def compute_slope_from_dem(dem_files, cfg):
     slope_rad = np.arctan(np.sqrt(dx**2 + dy**2))
     slope_deg = np.degrees(slope_rad)
 
-    # Resample to 0.25° grid (simple block averaging)
+    # Resample to 0.25 degree grid (simple block averaging)
     import xarray as xr
     lats = np.arange(region["lat_min"], region["lat_max"] + res, res)
     lons = np.arange(region["lon_min"], region["lon_max"] + res, res)
@@ -114,10 +113,10 @@ def compute_slope_from_dem(dem_files, cfg):
 
     out = os.path.join(ROOT, cfg["paths"]["raw_data"], "srtm", "srtm_slope.nc")
     ds.to_netcdf(out)
-    print(f"  ✓ Processed real SRTM Slope computed → {out}")
+    print(f"  [OK] Processed real SRTM Slope computed -> {out}")
 
 
-# ── Synthetic data ───────────────────────────────────────────────
+# Synthetic data
 def generate_synthetic_srtm(cfg):
     """Create synthetic slope data mimicking California terrain."""
     import xarray as xr
@@ -134,7 +133,7 @@ def generate_synthetic_srtm(cfg):
     # Simulate: mountains along the Sierra Nevada ridge
     lat_grid, lon_grid = np.meshgrid(lats, lons, indexing="ij")
 
-    # Higher slopes along the Sierra Nevada (~118°W, 36–40°N)
+    # Higher slopes along the Sierra Nevada (~118W, 36-40N)
     sierra_mask = np.exp(
         -0.5 * ((lon_grid - (-118.5)) / 1.5) ** 2
         - 0.5 * ((lat_grid - 38.0) / 3.0) ** 2
@@ -149,10 +148,10 @@ def generate_synthetic_srtm(cfg):
 
     outfile = os.path.join(out_dir, "srtm_slope.nc")
     ds.to_netcdf(outfile)
-    print(f"  ✓ Synthetic SRTM slope → {outfile}  {slope.shape}")
+    print(f"  [OK] Synthetic SRTM slope -> {outfile} {slope.shape}")
 
 
-# ── CLI ───────────────────────────────────────────────────────────
+# Command-line interface
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download SRTM DEM / compute slope")
     parser.add_argument("--synthetic", action="store_true",
@@ -165,7 +164,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     if args.synthetic:
-        print("[MODE] Generating synthetic SRTM slope data …")
+        print("[MODE] Generating synthetic SRTM slope data...")
         generate_synthetic_srtm(cfg)
     else:
         download_srtm(cfg)

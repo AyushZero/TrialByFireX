@@ -11,8 +11,7 @@ In real mode:
 In synthetic mode:
   - Generates seasonal NDVI/NDWI patterns for pipeline testing.
 
-Usage
-─────
+Usage:
     python scripts/download_modis.py                 # real download
     python scripts/download_modis.py --synthetic      # demo data
 """
@@ -29,7 +28,7 @@ def load_config():
         return yaml.safe_load(f)
 
 
-# ── Real MODIS download via AppEEARS ─────────────────────────────
+# Real MODIS download via AppEEARS
 def download_modis(cfg):
     """
     Download MODIS data via NASA AppEEARS API.
@@ -42,32 +41,32 @@ def download_modis(cfg):
     and place files in data/raw/modis/.
     """
     print("""
-    ┌─────────────────────────────────────────────────────────┐
-    │ MODIS REAL DOWNLOAD                                     │
-    │                                                         │
-    │ For real MODIS data, you have these options:             │
-    │                                                         │
-    │ Option A – NASA AppEEARS (recommended):                 │
-    │   1. Create account at earthdata.nasa.gov               │
-    │   2. Go to appeears.earthdatacloud.nasa.gov             │
-    │   3. Submit area request for:                           │
-    │      • Product: MOD13A2.061 (NDVI 16-day)               │
-    │      • Layers: _1_km_16_days_NDVI,                      │
-    │                _1_km_16_days_NIR_reflectance,            │
-    │                _1_km_16_days_MIR_reflectance             │
-    │      • Region: California bbox                          │
-    │      • Dates: 2021-01-01 to 2023-12-31                  │
-    │   4. Download NetCDF output to data/raw/modis/          │
-    │                                                         │
-    │ Option B – Google Earth Engine:                          │
-    │   Use GEE Python API to extract MODIS products          │
-    │                                                         │
-    │ For now, use --synthetic flag for testing.               │
-    └─────────────────────────────────────────────────────────┘
+    +-------------------------------------------------------------+
+    | MODIS REAL DOWNLOAD                                         |
+    |                                                             |
+    | For real MODIS data, you have these options:                 |
+    |                                                             |
+    | Option A - NASA AppEEARS (recommended):                     |
+    |   1. Create account at earthdata.nasa.gov                   |
+    |   2. Go to appeears.earthdatacloud.nasa.gov                 |
+    |   3. Submit area request for:                               |
+    |      * Product: MOD13A2.061 (NDVI 16-day)                   |
+    |      * Layers: _1_km_16_days_NDVI,                          |
+    |                _1_km_16_days_NIR_reflectance,                |
+    |                _1_km_16_days_MIR_reflectance                 |
+    |      * Region: California bbox                              |
+    |      * Dates: 2021-01-01 to 2023-12-31                      |
+    |   4. Download NetCDF output to data/raw/modis/              |
+    |                                                             |
+    | Option B - Google Earth Engine:                              |
+    |   Use GEE Python API to extract MODIS products              |
+    |                                                             |
+    | For now, use --synthetic flag for testing.                   |
+    +-------------------------------------------------------------+
     """)
 
 
-# ── Synthetic data ───────────────────────────────────────────────
+# Synthetic data
 def generate_synthetic_modis(cfg):
     """Create synthetic NDVI/NDWI NetCDF files with realistic seasonality."""
     import xarray as xr
@@ -85,7 +84,7 @@ def generate_synthetic_modis(cfg):
 
     np.random.seed(77)
     for year in range(start_year, end_year + 1):
-        # 16-day composites (≈23 per year)
+        # 16-day composites (~23 per year)
         times = np.arange(
             np.datetime64(f"{year}-01-01"),
             np.datetime64(f"{year+1}-01-01"),
@@ -115,10 +114,10 @@ def generate_synthetic_modis(cfg):
 
         outfile = os.path.join(out_dir, f"modis_{year}.nc")
         ds.to_netcdf(outfile)
-        print(f"  ✓ Synthetic MODIS → {outfile}  ({ds.dims})")
+        print(f"  [OK] Synthetic MODIS -> {outfile} ({ds.dims})")
 
 
-# ── CLI ───────────────────────────────────────────────────────────
+# Command-line interface
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download MODIS NDVI/NDWI data")
     parser.add_argument("--synthetic", action="store_true",
@@ -131,7 +130,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     if args.synthetic:
-        print("[MODE] Generating synthetic MODIS data …")
+        print("[MODE] Generating synthetic MODIS data...")
         generate_synthetic_modis(cfg)
     else:
         download_modis(cfg)

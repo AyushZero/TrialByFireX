@@ -3,10 +3,9 @@
 Download FIRMS (VIIRS) active-fire data for the study region.
 
 Uses the NASA FIRMS REST API.
-API key is read from config.yaml → firms → map_key.
+API key is read from config.yaml: firms -> map_key.
 
-Usage
-─────
+Usage:
     python scripts/download_firms.py                 # real download
     python scripts/download_firms.py --synthetic      # generate demo data
 """
@@ -24,7 +23,7 @@ def load_config():
         return yaml.safe_load(f)
 
 
-# ── Real FIRMS download ─────────────────────────────────────────
+# Real FIRMS download
 def download_firms(cfg):
     """Download VIIRS fire data from NASA FIRMS REST API."""
     import requests
@@ -65,7 +64,7 @@ def download_firms(cfg):
                 f"{n_days}/{d.strftime('%Y-%m-%d')}"
             )
 
-            print(f"    Fetching {d} → {chunk_end} …")
+            print(f"    Fetching {d} to {chunk_end}...")
             resp = requests.get(url, timeout=120)
             if resp.status_code == 200 and len(resp.text.strip()) > 0:
                 lines = resp.text.strip().split("\n")
@@ -74,19 +73,19 @@ def download_firms(cfg):
                         all_data.append(lines[0])  # header
                     all_data.extend(lines[1:])
             else:
-                print(f"    ⚠ Status {resp.status_code} for {d}")
+                print(f"    [WARN] Status {resp.status_code} for {d}")
 
             d = chunk_end + timedelta(days=1)
 
         if all_data:
             with open(outfile, "w") as f:
                 f.write("\n".join(all_data))
-            print(f"  ✓ Saved → {outfile}  ({len(all_data)-1} records)")
+            print(f"  [OK] Saved to {outfile} ({len(all_data)-1} records)")
         else:
-            print(f"  ⚠ No data retrieved for {year}")
+            print(f"  [WARN] No data retrieved for {year}")
 
 
-# ── Synthetic data ───────────────────────────────────────────────
+# Synthetic data
 def generate_synthetic_firms(cfg):
     """Create synthetic FIRMS-like CSV files for pipeline testing."""
     region = cfg["region"]
@@ -117,10 +116,10 @@ def generate_synthetic_firms(cfg):
 
         outfile = os.path.join(out_dir, f"firms_{year}.csv")
         df.to_csv(outfile, index=False)
-        print(f"  ✓ Synthetic FIRMS → {outfile}  ({n_fires} fires)")
+        print(f"  [OK] Synthetic FIRMS -> {outfile} ({n_fires} fires)")
 
 
-# ── CLI ───────────────────────────────────────────────────────────
+# Command-line interface
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download FIRMS data")
     parser.add_argument("--synthetic", action="store_true",
@@ -133,10 +132,10 @@ if __name__ == "__main__":
     print("=" * 60)
 
     if args.synthetic:
-        print("[MODE] Generating synthetic FIRMS data …")
+        print("[MODE] Generating synthetic FIRMS data...")
         generate_synthetic_firms(cfg)
     else:
-        print("[MODE] Downloading real FIRMS data …")
+        print("[MODE] Downloading real FIRMS data...")
         download_firms(cfg)
 
     print("Done.\n")
