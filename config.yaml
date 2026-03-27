@@ -64,3 +64,41 @@ paths:
   features: "data/features"
   models: "models"
   outputs: "outputs"
+
+# ------ Model Hyperparameters ------
+models:
+  logistic:
+    C: 1.0
+    max_iter: 1000
+    solver: "lbfgs"
+
+  random_forest:
+    n_estimators: 200
+    max_depth: 10
+    random_state: 42
+
+  xgboost:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+    random_state: 42
+
+  lightgbm:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+    num_leaves: 31
+    random_state: 42
+
+# ------ SMOTE / Class Balancing ------
+smote:
+  target_ratio: 0.10
+  undersample_ratio: 0.30
+  k_neighbors: 3
+  random_state: 42
+
+# ------ Hyperparameter Tuning ------
+tuning:
+  enabled: false  # Set to true to enable GridSearchCV
+  cv_folds: 3
+  scoring: "roc_auc"

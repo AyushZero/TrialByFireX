@@ -9,7 +9,8 @@ Physics-guided model:
 Trained via binary cross-entropy (maximum likelihood).
 """
 
-import os, pickle
+import os
+import joblib
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -131,6 +132,48 @@ def train_xgboost(X_train, y_train, n_estimators=200, max_depth=6,
     return model
 
 
+def train_lightgbm(X_train, y_train, n_estimators=200, max_depth=6,
+                   learning_rate=0.1, num_leaves=31):
+    """
+    LightGBM gradient boosting on full feature vector.
+
+    LightGBM is typically faster than XGBoost for large datasets and
+    handles categorical features natively.
+
+    Parameters
+    ----------
+    n_estimators : int
+    max_depth : int
+    learning_rate : float
+    num_leaves : int
+
+    Returns
+    -------
+    model : fitted LGBMClassifier
+    """
+    from lightgbm import LGBMClassifier
+
+    # Compute scale_pos_weight for class imbalance
+    n_pos = y_train.sum()
+    n_neg = len(y_train) - n_pos
+    scale = n_neg / max(n_pos, 1)
+
+    model = LGBMClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        learning_rate=learning_rate,
+        num_leaves=num_leaves,
+        scale_pos_weight=scale,
+        random_state=42,
+        verbose=-1,
+        n_jobs=-1,
+    )
+    model.fit(X_train, y_train)
+    print(f"  LightGBM: {n_estimators} trees, depth={max_depth}, "
+          f"leaves={num_leaves}, lr={learning_rate}")
+    return model
+
+
 def train_weather_logistic(X_train, y_train, C=1.0):
     """
     Weather-only logistic regression baseline.
@@ -155,20 +198,27 @@ def train_weather_logistic(X_train, y_train, C=1.0):
 # ══════════════════════════════════════════════════════════════════
 
 def save_model(model, path, name="model"):
-    """Save a trained model to disk via pickle."""
+    """Save a trained model to disk via joblib (faster & safer than pickle)."""
     os.makedirs(path, exist_ok=True)
-    filepath = os.path.join(path, f"{name}.pkl")
-    with open(filepath, "wb") as f:
-        pickle.dump(model, f)
-    print(f"  ✓ Saved model → {filepath}")
+    filepath = os.path.join(path, f"{name}.joblib")
+    joblib.dump(model, filepath, compress=3)
+    print(f"  Saved model -> {filepath}")
 
 
 def load_model(path, name="model"):
     """Load a trained model from disk."""
-    filepath = os.path.join(path, f"{name}.pkl")
-    with open(filepath, "rb") as f:
-        model = pickle.load(f)
-    return model
+    # Try joblib first, fall back to pickle for legacy models
+    filepath_joblib = os.path.join(path, f"{name}.joblib")
+    filepath_pkl = os.path.join(path, f"{name}.pkl")
+
+    if os.path.exists(filepath_joblib):
+        return joblib.load(filepath_joblib)
+    elif os.path.exists(filepath_pkl):
+        import pickle
+        with open(filepath_pkl, "rb") as f:
+            return pickle.load(f)
+    else:
+        raise FileNotFoundError(f"No model found at {filepath_joblib} or {filepath_pkl}")
 
 
 # ══════════════════════════════════════════════════════════════════

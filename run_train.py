@@ -39,7 +39,7 @@ sys.path.insert(0, ROOT)
 from src.dataset import build_dataset, split_by_year, get_Xy
 from src.models import (
     train_physics_logistic, train_attribute_logistic,
-    train_random_forest, train_xgboost, train_weather_logistic,
+    train_random_forest, train_xgboost, train_lightgbm, train_weather_logistic,
     save_model, predict_proba,
 )
 from src.evaluate import (
@@ -231,6 +231,69 @@ def main():
     preds["XGBoost"] = (y_test_all, y_p5)
     print_metrics("XGBoost", results["XGBoost"])
     save_model(m5, models_dir, "xgboost")
+
+    # 5b. LightGBM
+    print("\n─── 5b. LightGBM ───")
+    try:
+        m5b = train_lightgbm(X_train_all_sm, y_train_all_sm)
+        y_p5b = predict_proba(m5b, X_test_all)
+        results["LightGBM"] = compute_metrics(y_test_all, y_p5b)
+        results["LightGBM"]["log_loss"] = float(
+            -(y_test_all * np.log(np.clip(y_p5b, 1e-15, 1)) +
+              (1-y_test_all) * np.log(np.clip(1-y_p5b, 1e-15, 1))).mean())
+        preds["LightGBM"] = (y_test_all, y_p5b)
+        print_metrics("LightGBM", results["LightGBM"])
+        save_model(m5b, models_dir, "lightgbm")
+    except ImportError as e:
+        print(f"  LightGBM not available: {e}")
+        print("  Install with: pip install lightgbm")
+
+    # 5c. Optional Hyperparameter Tuning (GridSearchCV)
+    tuning_cfg = cfg.get("tuning", {})
+    if tuning_cfg.get("enabled", False):
+        print("\n─── 5c. Hyperparameter Tuning (GridSearchCV) ───")
+        from sklearn.model_selection import GridSearchCV
+        from xgboost import XGBClassifier
+
+        param_grid = {
+            'n_estimators': [100, 200, 300],
+            'max_depth': [4, 6, 8],
+            'learning_rate': [0.05, 0.1, 0.2],
+        }
+
+        n_pos = y_train_all_sm.sum()
+        n_neg = len(y_train_all_sm) - n_pos
+        scale = n_neg / max(n_pos, 1)
+
+        base_model = XGBClassifier(
+            scale_pos_weight=scale,
+            random_state=42,
+            use_label_encoder=False,
+            eval_metric="logloss",
+            verbosity=0,
+        )
+
+        grid_search = GridSearchCV(
+            base_model, param_grid,
+            cv=tuning_cfg.get("cv_folds", 3),
+            scoring=tuning_cfg.get("scoring", "roc_auc"),
+            n_jobs=-1, verbose=1
+        )
+
+        print("  Running GridSearchCV (this may take a while)...")
+        grid_search.fit(X_train_all_sm, y_train_all_sm)
+        print(f"  Best params: {grid_search.best_params_}")
+        print(f"  Best CV AUC-ROC: {grid_search.best_score_:.4f}")
+
+        m5_tuned = grid_search.best_estimator_
+        y_p5_tuned = m5_tuned.predict_proba(X_test_all)[:, 1]
+        results["XGBoost (Tuned)"] = compute_metrics(y_test_all, y_p5_tuned)
+        results["XGBoost (Tuned)"]["log_loss"] = float(
+            -(y_test_all * np.log(np.clip(y_p5_tuned, 1e-15, 1)) +
+              (1-y_test_all) * np.log(np.clip(1-y_p5_tuned, 1e-15, 1))).mean())
+        preds["XGBoost (Tuned)"] = (y_test_all, y_p5_tuned)
+        print_metrics("XGBoost (Tuned)", results["XGBoost (Tuned)"])
+        save_model(m5_tuned, models_dir, "xgboost_tuned")
 
     # 6. Weather-only
     print("\n─── 6. Weather-Only Logistic ───")

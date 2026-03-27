@@ -230,24 +230,36 @@ def process_firms(raw_dir, cfg):
     frp_hist   = np.zeros((n_days, n_lat, n_lon), dtype=np.float32)
     count_hist = np.zeros((n_days, n_lat, n_lon), dtype=np.float32)
 
-    # Group fires by cell and date
-    for _, row in firms.iterrows():
-        li, lo = int(row["lat_idx"]), int(row["lon_idx"])
-        if 0 <= li < n_lat and 0 <= lo < n_lon:
-            dt = row["acq_date"]
-            if start <= dt <= end:
-                tidx = (dt - start).days
-                y[tidx, li, lo] = 1.0
+    # ── Vectorized fire assignment ────────────────────────────────
+    # Filter to valid grid cells and time range
+    valid_mask = (
+        (firms["lat_idx"] >= 0) & (firms["lat_idx"] < n_lat) &
+        (firms["lon_idx"] >= 0) & (firms["lon_idx"] < n_lon) &
+        (firms["acq_date"] >= start) & (firms["acq_date"] <= end)
+    )
+    valid_firms = firms[valid_mask].copy()
+    valid_firms["tidx"] = (valid_firms["acq_date"] - start).dt.days
 
-    # Compute sliding-window history features
-    for t in range(n_days):
-        for k in range(1, window + 1):
-            t_k = t - k
-            if t_k < 0:
-                continue
-            w = decay ** k  # exponential decay
-            frp_hist[t]   += w * y[t_k]   # simplified: using y as proxy
-            count_hist[t] += w * y[t_k]
+    # Use np.add.at for vectorized accumulation (handles duplicate indices)
+    t_idx = valid_firms["tidx"].values.astype(np.int32)
+    lat_indices = valid_firms["lat_idx"].values.astype(np.int32)
+    lon_indices = valid_firms["lon_idx"].values.astype(np.int32)
+    np.add.at(y, (t_idx, lat_indices, lon_indices), 1.0)
+    y = np.clip(y, 0, 1)  # Binary: any fire = 1
+
+    print(f"  Assigned {len(valid_firms)} fire detections to grid")
+
+    # ── Vectorized sliding-window history (10-100x faster) ────────
+    # Build decay weights: [decay^1, decay^2, ..., decay^window]
+    decay_weights = decay ** np.arange(1, window + 1)
+
+    # Apply each lag efficiently using array slicing
+    for k in range(1, window + 1):
+        w = decay ** k
+        frp_hist[k:]   += w * y[:-k]
+        count_hist[k:] += w * y[:-k]
+
+    print(f"  Computed {window}-day sliding window history")
 
     result = xr.Dataset(
         {

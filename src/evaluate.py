@@ -27,11 +27,84 @@ from sklearn.metrics import (
 # Scalar metrics
 # ══════════════════════════════════════════════════════════════════
 
-def compute_metrics(y_true, y_prob):
+def compute_csi(y_true, y_prob, threshold=0.5):
+    """
+    Critical Success Index (CSI) / Threat Score.
+
+    CSI = Hits / (Hits + Misses + False Alarms)
+
+    Commonly used in weather/fire forecasting to assess rare event detection.
+    Range: [0, 1], higher is better. Ignores correct negatives.
+
+    Parameters
+    ----------
+    y_true : array-like - ground truth binary labels
+    y_prob : array-like - predicted probabilities
+    threshold : float - decision threshold
+
+    Returns
+    -------
+    float - CSI score
+    """
+    y_pred = (np.asarray(y_prob) >= threshold).astype(int)
+    y_true = np.asarray(y_true)
+
+    hits = ((y_pred == 1) & (y_true == 1)).sum()
+    misses = ((y_pred == 0) & (y_true == 1)).sum()
+    false_alarms = ((y_pred == 1) & (y_true == 0)).sum()
+
+    denominator = hits + misses + false_alarms
+    if denominator == 0:
+        return 0.0
+    return hits / denominator
+
+
+def compute_gilbert_skill_score(y_true, y_prob, threshold=0.5):
+    """
+    Gilbert Skill Score (GSS) / Equitable Threat Score (ETS).
+
+    Adjusts CSI for hits expected by random chance:
+    GSS = (Hits - Hits_random) / (Hits + Misses + FA - Hits_random)
+
+    Range: [-1/3, 1], where 0 = no skill, 1 = perfect.
+    More robust than CSI for rare events.
+
+    Parameters
+    ----------
+    y_true : array-like - ground truth binary labels
+    y_prob : array-like - predicted probabilities
+    threshold : float - decision threshold
+
+    Returns
+    -------
+    float - Gilbert Skill Score
+    """
+    y_pred = (np.asarray(y_prob) >= threshold).astype(int)
+    y_true = np.asarray(y_true)
+
+    hits = ((y_pred == 1) & (y_true == 1)).sum()
+    misses = ((y_pred == 0) & (y_true == 1)).sum()
+    false_alarms = ((y_pred == 1) & (y_true == 0)).sum()
+    correct_neg = ((y_pred == 0) & (y_true == 0)).sum()
+
+    total = hits + misses + false_alarms + correct_neg
+    if total == 0:
+        return 0.0
+
+    # Expected hits by random chance
+    hits_random = ((hits + misses) * (hits + false_alarms)) / total
+
+    denominator = hits + misses + false_alarms - hits_random
+    if denominator == 0:
+        return 0.0
+    return (hits - hits_random) / denominator
+
+
+def compute_metrics(y_true, y_prob, threshold=0.5):
     """
     Compute core evaluation metrics.
 
-    Returns dict with: auc_roc, auc_pr, brier_score
+    Returns dict with: auc_roc, auc_pr, brier_score, csi, gss
     """
     metrics = {}
     try:
@@ -43,6 +116,8 @@ def compute_metrics(y_true, y_prob):
     except ValueError:
         metrics["auc_pr"]      = float("nan")
     metrics["brier_score"] = brier_score_loss(y_true, y_prob)
+    metrics["csi"]         = compute_csi(y_true, y_prob, threshold)
+    metrics["gss"]         = compute_gilbert_skill_score(y_true, y_prob, threshold)
     return metrics
 
 

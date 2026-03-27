@@ -14,6 +14,7 @@ pyproj>=3.5
 
 # Machine Learning
 scikit-learn>=1.3
+joblib>=1.3
 
 # Visualization
 matplotlib>=3.7
@@ -37,7 +38,9 @@ tqdm>=4.65
 
 # Advanced ML
 xgboost>=2.0
+lightgbm>=4.0
 shap>=0.42
+imbalanced-learn>=0.11
 
 # Dashboard
 streamlit>=1.30
