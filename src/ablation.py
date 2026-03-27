@@ -25,6 +25,24 @@ from src.features import (
 )
 
 
+def _align_flat_length(arr, target_len, name):
+    """
+    Align a flat feature array to target length.
+
+    This supports ablation inputs where some variables are dynamic
+    (time x lat x lon flattened) and some are static (lat x lon flattened),
+    e.g. slope.
+    """
+    arr = np.asarray(arr).reshape(-1)
+    if arr.size == target_len:
+        return arr
+    if arr.size > 0 and target_len % arr.size == 0:
+        return np.tile(arr, target_len // arr.size)
+    raise ValueError(
+        f"Cannot align '{name}' of length {arr.size} to target length {target_len}"
+    )
+
+
 def run_ablation(normed_data, y_train, y_test, train_mask, test_mask, cfg):
     """
     Run ablation study: train logistic regression on R_phys with each
@@ -45,14 +63,26 @@ def run_ablation(normed_data, y_train, y_test, train_mask, test_mask, cfg):
     beta = cfg["beta"]
     gamma = cfg["gamma"]
 
+    # Align mixed static/dynamic flat arrays to a common length.
+    # Dynamic variables (e.g. t_max) are already target length; static
+    # variables (e.g. slope) are tiled across time.
+    target_len = np.asarray(normed_data["t_max"]).reshape(-1).size
+    t_max = _align_flat_length(normed_data["t_max"], target_len, "t_max")
+    ndvi = _align_flat_length(normed_data["ndvi"], target_len, "ndvi")
+    ndwi = _align_flat_length(normed_data["ndwi"], target_len, "ndwi")
+    rh_min = _align_flat_length(normed_data["rh_min"], target_len, "rh_min")
+    sm_top = _align_flat_length(normed_data["sm_top"], target_len, "sm_top")
+    u10_max = _align_flat_length(normed_data["u10_max"], target_len, "u10_max")
+    slope = _align_flat_length(normed_data["slope"], target_len, "slope")
+    frp_hist = _align_flat_length(normed_data["frp_hist"], target_len, "frp_hist")
+    count_hist = _align_flat_length(normed_data["count_hist"], target_len, "count_hist")
+
     # Compute base factors
-    F_a  = compute_F_avail(normed_data["ndvi"])
-    F_d  = compute_F_dry(normed_data["ndwi"], normed_data["rh_min"],
-                         normed_data["sm_top"], alpha)
-    G_s  = compute_G_spread(normed_data["u10_max"], normed_data["slope"], beta)
-    H_h  = compute_H_history(normed_data["frp_hist"],
-                             normed_data["count_hist"], gamma)
-    T_n  = normed_data["t_max"]
+    F_a = compute_F_avail(ndvi)
+    F_d = compute_F_dry(ndwi, rh_min, sm_top, alpha)
+    G_s = compute_G_spread(u10_max, slope, beta)
+    H_h = compute_H_history(frp_hist, count_hist, gamma)
+    T_n = t_max
 
     # Define ablation variants
     variants = {

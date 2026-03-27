@@ -34,12 +34,16 @@ def build_dataset(features_dir):
     # Flatten spatial + temporal dims
     df = ds.to_dataframe().reset_index()
 
+    # Add year column for splitting
+    df["year"] = pd.to_datetime(df["time"]).dt.year
+
     # Drop rows where label is NaN
     if "ignition" in df.columns:
         df = df.dropna(subset=["ignition"])
 
-    # Add year column for splitting
-    df["year"] = pd.to_datetime(df["time"]).dt.year
+    # Drop rows with any NaN in feature columns
+    feature_cols = [col for col in df.columns if col not in ['time', 'latitude', 'longitude', 'year']]
+    df = df.dropna(subset=feature_cols)
 
     print(f"  Dataset: {len(df):,} samples, "
           f"fire rate: {df['ignition'].mean()*100:.2f}%")
