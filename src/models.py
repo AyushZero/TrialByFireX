@@ -14,22 +14,7 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.calibration import CalibratedClassifierCV
-from imblearn.under_sampling import RandomUnderSampler
 
-# ══════════════════════════════════════════════════════════════════
-# Helper: Class Balancing
-# ══════════════════════════════════════════════════════════════════
-
-def balance_dataset(X, y, random_state=42):
-    """
-    Apply RandomUnderSampler to handle extreme class imbalance (fire vs no-fire).
-    Reduces the majority class to match the minority class.
-    """
-    if len(np.unique(y)) > 1:
-        rus = RandomUnderSampler(random_state=random_state)
-        X_res, y_res = rus.fit_resample(X, y)
-        return X_res, y_res
-    return X, y
 
 # ══════════════════════════════════════════════════════════════════
 # Model training

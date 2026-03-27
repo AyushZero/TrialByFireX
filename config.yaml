@@ -13,10 +13,10 @@ region:
 # ------ Time Range ------
 time:
   start: "2021-01-01"
-  end: "2021-12-31"   # Focused on 2021 for Dixie Fire case study
-  train_years: [2021]         # Will rely on Spatial CV for splitting
-  val_years: [2021]
-  test_years: [2021]
+  end: "2023-12-31"
+  train_years: [2021]
+  val_years: [2022]
+  test_years: [2023]
 
 # ------ Grid ------
 grid:
@@ -45,7 +45,7 @@ firms:
   decay_factor: 0.5          # exponential decay λ
   confidence_filter: ["nominal", "high"]
   type_filter: "vegetation"
-  map_key: "5b037742a4a4c87b04db2fe9e5c412b4"
+  map_key: "8d1fc620acbeefae924ac07254f1fcfd"
 
 # ------ ERA5 / CDS API ------
 era5:

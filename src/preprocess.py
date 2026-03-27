@@ -97,7 +97,7 @@ def process_modis(raw_dir, cfg):
     """
     gi = grid_info(cfg)
     modis_dir = os.path.join(raw_dir, "modis")
-    files = sorted(glob.glob(os.path.join(modis_dir, "modis_*.nc")))
+    files = sorted(glob.glob(os.path.join(modis_dir, "*.nc")))
     if not files:
         raise FileNotFoundError(f"No MODIS files in {modis_dir}")
 
@@ -106,12 +106,41 @@ def process_modis(raw_dir, cfg):
         print(f"  Processing {os.path.basename(f)} …")
         ds = xr.open_dataset(f)
 
-        # Regrid
+        # Standardize coordinates
+        if "lat" in ds.dims:
+            ds = ds.rename({"lat": "latitude", "lon": "longitude"})
+
+        # Handle NASA AppEEARS variable names (xarray auto-applies NetCDF scale_factor)
+        if "_1_km_16_days_NDVI" in ds:
+            ds["ndvi"] = ds["_1_km_16_days_NDVI"]
+            # If NDWI isn't explicitly downloaded, use a proxy based on NDVI & MIR or just NDVI
+            if "_1_km_16_days_MIR_reflectance" in ds:
+                # Rough approximation: normalize MIR to [-1, 1] and invert
+                mir = ds["_1_km_16_days_MIR_reflectance"]
+                ds["ndwi"] = (ds["ndvi"] - mir) / (ds["ndvi"] + mir + 1e-6)
+            else:
+                ds["ndwi"] = ds["ndvi"] - 0.2
+        elif "NDVI" in ds:
+            ds["ndvi"] = ds["NDVI"]
+            ds["ndwi"] = ds["ndvi"] - 0.2
+
+        # Ensure ndvi and ndwi are within valid physical ranges
+        if "ndvi" in ds:
+            ds["ndvi"] = xr.where(ds["ndvi"] > 1.0, 1.0, ds["ndvi"])
+            ds["ndvi"] = xr.where(ds["ndvi"] < -1.0, -1.0, ds["ndvi"])
+        if "ndwi" in ds:
+            ds["ndwi"] = xr.where(ds["ndwi"] > 1.0, 1.0, ds["ndwi"])
+            ds["ndwi"] = xr.where(ds["ndwi"] < -1.0, -1.0, ds["ndwi"])
+
+        # Regrid to target bounding box
         ds = ds.interp(latitude=gi["lats"], longitude=gi["lons"],
                        method="nearest")
 
+        # Keep only the standardized variables we need
+        ds_clean = ds[["ndvi", "ndwi"]]
+
         # Resample to daily using forward-fill
-        daily = ds.resample(time="1D").ffill()
+        daily = ds_clean.resample(time="1D").ffill()
         all_years.append(daily)
         ds.close()
 

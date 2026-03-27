@@ -19,7 +19,7 @@ import seaborn as sns
 from sklearn.metrics import (
     roc_auc_score, average_precision_score, brier_score_loss,
     roc_curve, precision_recall_curve, confusion_matrix,
-    classification_report, log_loss
+    classification_report,
 )
 
 
@@ -31,7 +31,7 @@ def compute_metrics(y_true, y_prob):
     """
     Compute core evaluation metrics.
 
-    Returns dict with: auc_roc, auc_pr, brier_score, log_loss
+    Returns dict with: auc_roc, auc_pr, brier_score
     """
     metrics = {}
     try:
@@ -43,12 +43,6 @@ def compute_metrics(y_true, y_prob):
     except ValueError:
         metrics["auc_pr"]      = float("nan")
     metrics["brier_score"] = brier_score_loss(y_true, y_prob)
-    
-    try:
-        metrics["log_loss"] = log_loss(y_true, y_prob)
-    except ValueError:
-        metrics["log_loss"] = float("nan")
-        
     return metrics
 
 

@@ -48,8 +48,7 @@ def download_firms(cfg):
             print(f"  [skip] {outfile} already exists")
             continue
 
-        # FIRMS API supports max 10-day ranges for area queries,
-        # so we iterate in 10-day chunks
+        # FIRMS API supports max 5-day ranges for archival area queries
         all_data = []
         from datetime import date, timedelta
         d = date(year, 1, 1)

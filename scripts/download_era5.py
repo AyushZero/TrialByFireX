@@ -1,158 +1,99 @@
-#!/usr/bin/env python3
 """
-Download ERA5 reanalysis data for the study region via the CDS API.
-
-Prerequisites
-─────────────
-1. pip install cdsapi
-2. Create a file  ~/.cdsapirc  (or %USERPROFILE%\.cdsapirc on Windows) with:
-
-       url: https://cds.climate.copernicus.eu/api
-       key: <your-key>
-
-   Alternatively, the script reads from config.yaml → era5 section.
-
-Usage
-─────
-    python scripts/download_era5.py                 # real download
-    python scripts/download_era5.py --synthetic      # generate demo data
+Data download script for ERA5 reanalysis via Copernicus CDS API.
 """
 
-import argparse, os, sys, yaml
-import numpy as np
+import os
+import yaml
+import cdsapi
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, ROOT)
-
-
-def load_config():
-    with open(os.path.join(ROOT, "config.yaml")) as f:
-        return yaml.safe_load(f)
-
-
-# ── Real ERA5 download via CDS API ────────────────────────────────
 def download_era5(cfg):
-    """Download ERA5 hourly data year-by-year as NetCDF."""
-    import cdsapi
+    print("============================================================")
+    print("ERA5 Data Download")
+    print("============================================================")
 
-    region = cfg["region"]
-    area = [region["lat_max"], region["lon_min"],
-            region["lat_min"], region["lon_max"]]  # N, W, S, E
-
-    out_dir = os.path.join(ROOT, cfg["paths"]["raw_data"], "era5")
+    out_dir = os.path.join(cfg["paths"]["raw_data"], "era5")
     os.makedirs(out_dir, exist_ok=True)
 
-    start_year = int(cfg["time"]["start"][:4])
-    end_year   = int(cfg["time"]["end"][:4])
+    lat_max = cfg["region"]["lat_max"]
+    lat_min = cfg["region"]["lat_min"]
+    lon_max = cfg["region"]["lon_max"]
+    lon_min = cfg["region"]["lon_min"]
+    area = [lat_max, lon_min, lat_min, lon_max]
 
-    variables = cfg["era5"]["variables"]
+    start_year = int(cfg["time"]["start"].split("-")[0])
+    end_year = int(cfg["time"]["end"].split("-")[0])
+    years = [str(y) for y in range(start_year, end_year + 1)]
 
-    client = cdsapi.Client()
+    # Initialize CDS client natively
+    try:
+        client = cdsapi.Client()
+    except Exception as e:
+        print("[ERROR] CDS API client could not be initialized.")
+        return
 
-    for year in range(start_year, end_year + 1):
-        print(f"  Requesting ERA5 for {year} (chunked by month) ...")
-        for m in range(1, 13):
-            month_str = f"{m:02d}"
-            outfile = os.path.join(out_dir, f"era5_{year}_{month_str}.nc")
+    print("[MODE] Downloading real ERA5 data via CDS API (Month by Month) ...")
+    
+    days = [f"{d:02d}" for d in range(1, 32)]
+    hours = [f"{h:02d}:00" for h in range(0, 24)]
+
+    # Fetch chunked by year and month
+    for year in years:
+        for month in range(1, 13):
+            m_str = f"{month:02d}"
+            outfile = os.path.join(out_dir, f"era5_{year}_{m_str}.nc")
+            
+            # Simple existence check to cleanly resume downloads
             if os.path.exists(outfile):
-                print(f"  [skip] {outfile} already exists")
+                print(f"  [{year}-{m_str}] Data exists locally. Skipping...")
                 continue
-
-            days   = [f"{d:02d}" for d in range(1, 32)]
-            hours  = [f"{h:02d}:00" for h in range(0, 24)]
-
+                
+            print(f"  [{year}-{m_str}] Requesting from Copernicus API...")
+            
             try:
                 client.retrieve(
                     "reanalysis-era5-single-levels",
                     {
                         "product_type": "reanalysis",
-                        "variable": variables,
-                        "year":  str(year),
-                        "month": month_str,
-                        "day":   days,
-                        "time":  hours,
-                        "area":  area,
+                        "variable": [
+                            "2m_temperature",
+                            "2m_dewpoint_temperature",
+                            "10m_u_component_of_wind",
+                            "10m_v_component_of_wind",
+                            "total_precipitation",
+                            "volumetric_soil_water_layer_1"
+                        ],
+                        "year": [year],
+                        "month": [m_str],
+                        "day": days,
+                        "time": hours,
+                        "area": area,
                         "format": "netcdf",
                     },
-                    outfile,
+                    outfile
                 )
-                print(f"  ✓ Saved → {outfile}")
             except Exception as e:
-                print(f"  ⚠ Failed for {year}-{month_str}: {e}")
+                print(f"  [ERROR] Downloading {year}-{m_str} failed: {e}")
+                if os.path.exists(outfile):
+                    os.remove(outfile)
+                
+    print("Done. All ERA5 NetCDF chunks are completely ready for preprocessing.")
 
-
-# ── Synthetic / demo data generator ──────────────────────────────
-def generate_synthetic_era5(cfg):
-    """Create small synthetic NetCDF files (for pipeline testing)."""
-    import xarray as xr
-
-    region = cfg["region"]
-    res = cfg["grid"]["resolution"]
-    lats = np.arange(region["lat_min"], region["lat_max"] + res, res)
-    lons = np.arange(region["lon_min"], region["lon_max"] + res, res)
-
-    out_dir = os.path.join(ROOT, cfg["paths"]["raw_data"], "era5")
-    os.makedirs(out_dir, exist_ok=True)
-
-    start_year = int(cfg["time"]["start"][:4])
-    end_year   = int(cfg["time"]["end"][:4])
-
-    np.random.seed(42)
-    for year in range(start_year, end_year + 1):
-        times = np.arange(
-            np.datetime64(f"{year}-01-01"),
-            np.datetime64(f"{year+1}-01-01"),
-            np.timedelta64(1, "h"),
-        )
-        # Keep only every 6th hour to reduce file size
-        times = times[::6]
-
-        shape = (len(times), len(lats), len(lons))
-
-        ds = xr.Dataset(
-            {
-                "t2m":   (["time", "latitude", "longitude"],
-                          273.15 + 15 + 20 * np.random.rand(*shape).astype(np.float32)),
-                "d2m":   (["time", "latitude", "longitude"],
-                          273.15 + 5 + 15 * np.random.rand(*shape).astype(np.float32)),
-                "u10":   (["time", "latitude", "longitude"],
-                          5 * np.random.rand(*shape).astype(np.float32)),
-                "v10":   (["time", "latitude", "longitude"],
-                          5 * np.random.rand(*shape).astype(np.float32)),
-                "tp":    (["time", "latitude", "longitude"],
-                          0.001 * np.random.rand(*shape).astype(np.float32)),
-                "swvl1": (["time", "latitude", "longitude"],
-                          0.1 + 0.3 * np.random.rand(*shape).astype(np.float32)),
-            },
-            coords={
-                "time":      times,
-                "latitude":  lats,
-                "longitude": lons,
-            },
-        )
-
-        outfile = os.path.join(out_dir, f"era5_{year}.nc")
-        ds.to_netcdf(outfile)
-        print(f"  ✓ Synthetic ERA5 → {outfile}  ({ds.dims})")
-
-
-# ── CLI ───────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Download ERA5 data")
-    parser.add_argument("--synthetic", action="store_true",
-                        help="Generate synthetic demo data instead of real download")
-    args = parser.parse_args()
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_path = os.path.join(root_dir, "config.yaml")
 
-    cfg = load_config()
-    print("=" * 60)
-    print("ERA5 Data Download")
-    print("=" * 60)
+    with open(config_path, "r") as f:
+        cfg = yaml.safe_load(f)
 
-    if args.synthetic:
-        print("[MODE] Generating synthetic ERA5 data …")
-        generate_synthetic_era5(cfg)
+    if "--synthetic" in os.sys.argv:
+        print("Using synthetic is no longer natively available in this script, please run with real data.")
     else:
-        print("[MODE] Downloading real ERA5 data via CDS API …")
+        # Configuration check
+        home = os.path.expanduser("~")
+        cdsapirc = os.path.join(home, ".cdsapirc")
+        if not os.path.exists(cdsapirc):
+             print(f"[WARNING] You do not have a .cdsapirc file in {home}.")
+             print("To download real ERA5 data, you must register at https://cds.climate.copernicus.eu/ and save your API key.")
+             os.sys.exit(1)
+             
         download_era5(cfg)
-
-    print("Done.\n")

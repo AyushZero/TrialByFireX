@@ -61,23 +61,38 @@ def download_srtm(cfg):
     └──────────────────────────────────────────────────────────┘
     """)
 
-    # If a DEM file already exists, compute slope
-    dem_path = os.path.join(ROOT, cfg["paths"]["raw_data"], "srtm", "srtm_dem.tif")
-    if os.path.exists(dem_path):
-        compute_slope_from_dem(dem_path, cfg)
+    # If DEM files exist (even multiple chunks), compute slope
+    dem_dir = os.path.join(ROOT, cfg["paths"]["raw_data"], "srtm")
+    os.makedirs(dem_dir, exist_ok=True)
+    dem_files = [os.path.join(dem_dir, f) for f in os.listdir(dem_dir) if f.endswith(".tif") and "slope" not in f]
+    
+    if dem_files:
+        compute_slope_from_dem(dem_files, cfg)
 
 
-def compute_slope_from_dem(dem_path, cfg):
-    """Compute slope from DEM GeoTIFF and resample to grid resolution."""
+def compute_slope_from_dem(dem_files, cfg):
+    """Compute slope from one or multiple DEM GeoTIFF chunks by merging them first."""
     import rasterio
+    from rasterio.merge import merge
     from scipy.ndimage import sobel
 
     region = cfg["region"]
     res = cfg["grid"]["resolution"]
 
-    with rasterio.open(dem_path) as src:
-        elev = src.read(1).astype(np.float32)
+    if len(dem_files) > 1:
+        print(f"  Found {len(dem_files)} DEM chunks. Merging them seamlessly...")
+    
+    # Open all chunks
+    srcs = [rasterio.open(f) for f in dem_files]
+    
+    # Merge into a single mosaic array
+    mosaic, out_trans = merge(srcs)
+    elev = mosaic[0].astype(np.float32)
+    
+    for src in srcs:
+        src.close()
 
+    print("  Applying Sobel filter to compute slope...")
     # Compute slope using Sobel filter
     dx = sobel(elev, axis=1)
     dy = sobel(elev, axis=0)
@@ -89,7 +104,7 @@ def compute_slope_from_dem(dem_path, cfg):
     lats = np.arange(region["lat_min"], region["lat_max"] + res, res)
     lons = np.arange(region["lon_min"], region["lon_max"] + res, res)
 
-    # For now, just interpolate
+    # For now, just interpolate a mean slope
     slope_grid = np.mean(slope_deg) * np.ones((len(lats), len(lons)), dtype=np.float32)
 
     ds = xr.Dataset(
@@ -99,7 +114,7 @@ def compute_slope_from_dem(dem_path, cfg):
 
     out = os.path.join(ROOT, cfg["paths"]["raw_data"], "srtm", "srtm_slope.nc")
     ds.to_netcdf(out)
-    print(f"  ✓ Slope computed → {out}")
+    print(f"  ✓ Processed real SRTM Slope computed → {out}")
 
 
 # ── Synthetic data ───────────────────────────────────────────────

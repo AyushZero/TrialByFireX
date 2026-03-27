@@ -69,53 +69,6 @@ def split_by_year(df, train_years, val_years, test_years):
     return train, val, test
 
 
-def spatial_split(df, n_splits=5):
-    """
-    Spatial block cross-validation using K-Means clustering on coordinates.
-    Creates spatial folds to prevent geographic data leakage.
-
-    Returns
-    -------
-    folds : list of tuples (train_idx, test_idx)
-    """
-    from sklearn.cluster import KMeans
-
-    coords = df[['latitude', 'longitude']].values
-    # Ensure same spatial blocks even for different temporal subsets
-    kmeans = KMeans(n_clusters=n_splits, random_state=42, n_init=10)
-    blocks = kmeans.fit_predict(coords)
-
-    folds = []
-    for i in range(n_splits):
-        test_mask = (blocks == i)
-        train_mask = ~test_mask
-        folds.append((np.where(train_mask)[0], np.where(test_mask)[0]))
-
-    print(f"  Spatial CV: {n_splits} distinct geographic blocks created.")
-    return folds
-
-
-def get_spatial_train_val_test(df, n_splits=5):
-    """
-    Splits the dataset into train, val, test geographically.
-    Fold 0 = Test, Fold 1 = Val, Folds 2+ = Train.
-    """
-    folds = spatial_split(df, n_splits=n_splits)
-    
-    test_idx = folds[0][1]
-    val_idx = folds[1][1]
-    
-    # Train is the remaining indices
-    train_idx = np.concatenate([folds[i][1] for i in range(2, n_splits)])
-    
-    train = df.iloc[train_idx].copy()
-    val = df.iloc[val_idx].copy()
-    test = df.iloc[test_idx].copy()
-    
-    print(f"  Spatial Split: train={len(train):,}, val={len(val):,}, test={len(test):,}")
-    return train, val, test
-
-
 def get_Xy(df, feature_col="R_phys", label_col="ignition"):
     """Extract feature matrix X and label vector y."""
     if isinstance(feature_col, str):
