@@ -98,25 +98,46 @@ def run_ablation(normed_data, y_train, y_test, train_mask, test_mask, cfg):
     for name, compute_fn in variants.items():
         R = np.asarray(compute_fn()).flatten()
 
-        R_train = R[train_mask].reshape(-1, 1)
-        R_test  = R[test_mask].reshape(-1, 1)
+        R_train_raw = R[train_mask]
+        R_test_raw = R[test_mask]
+
+        y_train_int = y_train.astype(int)
+        y_test_int = y_test.astype(int)
+
+        train_valid = np.isfinite(R_train_raw) & np.isfinite(y_train_int)
+        test_valid = np.isfinite(R_test_raw) & np.isfinite(y_test_int)
+
+        R_train = R_train_raw[train_valid].reshape(-1, 1)
+        y_train_cur = y_train_int[train_valid]
+
+        R_test = R_test_raw[test_valid].reshape(-1, 1)
+        y_test_cur = y_test_int[test_valid]
+
+        if R_train.shape[0] == 0 or R_test.shape[0] == 0 or np.unique(y_train_cur).size < 2:
+            print(f"  {name:25s}  [WARN] Skipped (insufficient finite/class-diverse samples)")
+            results[name] = {
+                "auc_roc": np.nan,
+                "auc_pr": np.nan,
+                "log_loss": np.nan,
+            }
+            continue
 
         model = LogisticRegression(
             solver="lbfgs", max_iter=1000, class_weight="balanced"
         )
-        model.fit(R_train, y_train.astype(int))
+        model.fit(R_train, y_train_cur)
         y_prob = model.predict_proba(R_test)[:, 1]
 
         try:
-            auc_roc = roc_auc_score(y_test, y_prob)
+            auc_roc = roc_auc_score(y_test_cur, y_prob)
         except ValueError:
             auc_roc = np.nan
         try:
-            auc_pr = average_precision_score(y_test, y_prob)
+            auc_pr = average_precision_score(y_test_cur, y_prob)
         except ValueError:
             auc_pr = np.nan
         try:
-            logloss = log_loss(y_test, y_prob)
+            logloss = log_loss(y_test_cur, y_prob)
         except ValueError:
             logloss = np.nan
 

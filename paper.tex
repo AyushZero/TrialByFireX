@@ -1,0 +1,626 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Physics-Guided Ignition Probability Modelling\\
+Using ERA5, MODIS, SRTM and FIRMS}
+
+\author{
+\IEEEauthorblockN{Ayush Singh}
+\IEEEauthorblockA{
+\textit{Department of Computational Intelligence}\\
+\textit{SRM Institute of Science and Technology}\\
+Kattankulathur, India}
+\and
+\IEEEauthorblockN{Sarvadnya Kulkarni}
+\IEEEauthorblockA{
+\textit{Department of Computational Intelligence}\\
+\textit{SRM Institute of Science and Technology}\\
+Kattankulathur, India}
+}
+
+\maketitle
+
+\begin{abstract}
+The ignition of wildfires results from the interaction of various factors. These factors include meteorology, live fuel moisture content, topography, and fire history. The existing systems provide qualitative fire weather danger classes. They also focus more on post-ignition detection and spread modeling. This research proposes a physics-based statistical model. This model estimates the daily ignition probability of each grid cell. The model uses only open-source data. The meteorological parameters are obtained through the ERA5 model. The quantity of fuels and the live fuel moisture content are obtained through open-source vegetation indices. The terrain slope uses the SRTM model. The ignition labeling and short-term fire activity context are obtained through the VIIRS model derived from FIRMS. A physically interpretable ignition risk index is created. This index depends on the normalized temperature, humidity deficit, fuels dryness, wind-slope-spreading potential, and decayed Fire Radiative Power history. The model estimates ignition probability through logistic regression. The performance of the model with respect to attribute-based baselines is compared through AUC-ROC, AUC-PR, and Brier Score. The proposed model has better calibration compared to attribute-based baselines. The model also has complete interpretability with respect to the contribution of each geospatial attribute to ignition risk. The proposed model will be a good starting point to incorporate deep learning in the future.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Wildfire Ignition, Physics-Guided Modelling, ERA5, MODIS, FIRMS, NDVI, NDWI,
+Logistic Regression, GIS, Fire Radiative Power, Ignition Probability, Ablation Study,
+SMOTE, Spatial Cross-Validation.
+\end{IEEEkeywords}
+
+% -----------------------------------------------------------------------
+\section{Introduction}
+
+The global wildfire occurrences have been increasing over the last two decades. The primary reason behind this increasing trend of wildfires is global warming. Global warming results in increased temperatures and droughts. Land use changes also contribute to the increasing trend of wildfires. Wildfires have been causing immense damage to the environment. They also result in huge financial losses of billions of dollars annually. Wildfires pose a threat to human health. Among all types of wildfires, vegetation fires contribute to 85\% of total wildfires. Forecasting wildfires before their ignition is a big problem.
+
+\subsection{Understanding Wildfire Ignition Dynamics}
+
+Wildfire ignition dynamics are a function of a combination of meteorological parameters, fuel properties, topography, and ignition causes. The Fire Weather Index (FWI) incorporates ERA5 reanalysis for a global model and provides empirical danger values for temperature, relative humidity, wind speed, and precipitation. Although FWI systems are widely used for fire danger classification within ordinal risk structures, they lack a statistical probability of ignition for a specific period and location. Thus, they are of limited use for quantitative risk analysis.
+
+At the same time, NASA's Fire Information for Resource Management System (FIRMS) provides a global database of fire hotspots, including fire radiative power, brightness temperature, and confidence values. The spatial resolution varies from 375 meters to 1 km. Yet again, most of these systems use these parameters in a reactive rather than a proactive manner. Live fuel moisture content, estimated from NDWI and NDVI, has a strong correlation with ignition susceptibility; however, such multi-modal geospatial information is not being fully exploited.
+
+\subsection{The Role of Machine Learning in Fire Prediction}
+
+Machine learning has been successfully applied to wildfire science in three main areas: active fire detection, burned area mapping, and fire spread simulation. Most models for wildfire prediction are opaque classifiers that compromise on accuracy for a small gain in accuracy. Moreover, deep learning models such as U-Nets and LSTMs lack any physical understanding of fire dynamics and may face resistance from domain experts such as GIS scientists.
+
+Physics-informed machine learning provides such an opportunity, where physics can be utilized for the development of more interpretable models without compromising their accuracy. One such model is the Physics-Informed Neural Network (PINNs), which has been utilized for wildfire spread prediction. However, physics-informed machine learning models for daily-scale, grid-cell level wildfire ignition probability forecasting have yet to be developed.
+
+\subsection{Research Motivation and Objectives}
+
+The ability to forecast ignition probability several days into the future will allow for more efficient allocation of resources, including the strategic placement of firefighters, the development of more efficient evacuation routes, and the optimization of prescribed burns. Current data-driven models, such as FWI and KBDI, may suffer from low generalizability due to their empirical nature. Even though machine learning models can be based on data, they can also be prone to spurious correlations, especially if the model does not generalize well to new data distributions. The physics-based approach, where attributes can be decomposed into their relevant components, such as fuel availability, dryness, and wind-slope, provides the advantages of both worlds, where the model will be transparent, interpretable, and can be calibrated using statistical methods based on observed ignition events.
+
+% -----------------------------------------------------------------------
+\section{Related Review}
+
+Table~\ref{tab:related} summarizes fifteen recent works spanning operational fire
+danger systems, ML-based fire prediction, vegetation moisture modelling, and
+interpretable statistical fire models. Each entry highlights the methodology,
+key limitations, and how the work positions the proposed physics-guided index.
+
+% --- Related Works Part 1 (entries 1-8) ---
+\begin{table*}[t]
+\caption{Summary of Related Works (Part 1 of 2)}
+\label{tab:related}
+\centering
+\scriptsize
+\begin{tabular}{|p{0.02\linewidth}|p{0.21\linewidth}|p{0.21\linewidth}|p{0.21\linewidth}|p{0.24\linewidth}|}
+\hline
+\textbf{\#} & \textbf{Title (Journal, Author, Year)} & \textbf{Methodology} & \textbf{Key Gaps} & \textbf{Results} \\
+\hline
+1 &
+Live fuel moisture content and ignition probability in the Iberian Peninsula
+(\textit{GeoFocus}, Yebra et al., 2014) &
+LFMC derived from MODIS; logistic regression to estimate ignition probability at regional scale. &
+Moderate predictive accuracy; biome-specific calibration needed; limited driver set (mostly LFMC). &
+AUC $\approx$ 0.6; confirmed lower LFMC significantly increases ignition likelihood, providing a direct precedent for LFMC$\rightarrow$logistic ignition modelling. \\
+\hline
+2 &
+ERA5-based global meteorological wildfire danger maps
+(\textit{Scientific Data}, Vitolo et al., 2020) &
+Computed FWI-family indices globally using ERA5 meteorology (T, RH, wind, precipitation). &
+Produces danger classes, not calibrated ignition probability; no explicit vegetation or terrain factors. &
+Released a validated global fire danger dataset, establishing ERA5-based FWI as a standard weather-only baseline. \\
+\hline
+3 &
+The New VIIRS 375\,m Active Fire Detection Product
+(\textit{Remote Sensing of Environment}, Schroeder et al., 2014) &
+Developed higher-resolution I-band VIIRS active fire detection algorithm; validated against MODIS. &
+Overpass timing constraints; detects fires post-ignition; cannot directly predict ignition. &
+Commission errors $<$1.2\% at nominal confidence; higher detection sensitivity than coarser sensors, supporting VIIRS/FIRMS as reliable ignition labels. \\
+\hline
+4 &
+Retrieval of biomass combustion rates from FRP observations
+(\textit{JGR Atmospheres}, Wooster et al., 2005) &
+Developed quantitative relationships between FRP and biomass combustion rate using airborne/satellite measurements. &
+Requires adequate temporal sampling; focused on active fire combustion, not pre-ignition prediction. &
+Established FRP as a physically meaningful combustion proxy with strong linear scaling across fire types, justifying FRP-based recent activity terms. \\
+\hline
+5 &
+Global data-driven prediction of fire activity
+(\textit{Nature Communications}, Di Giuseppe et al., 2025) &
+Probabilistic ML forecasting of global fire activity using ERA5 and satellite fire products. &
+Predicts fire activity/presence, not ignition onset per cell; black-box ML without physics-guided decomposition. &
+Reduced false alarms vs FWI; improved spatial localization when including fuel-status information, providing a modern ML baseline. \\
+\hline
+6 &
+Estimating wildfire ignition probabilities with geographically weighted logistic regression
+(\textit{NHESS}, 2025) &
+Geographically weighted logistic regression (GWLR) from NDMI, climate, and human covariates at local scales. &
+Spatially complex and region-dependent; no globally applicable physics-guided composite index. &
+AUC $>$0.8 in several regions, showing logistic-type probabilistic ignition models perform strongly when spatial variation is captured. \\
+\hline
+7 &
+Wildfire probability from recent climate and fine fuels across big sagebrush
+(\textit{USFS RMRS}, Holdrege et al., 2024) &
+Logistic regression linking wildfire probability to recent climate metrics and fine-fuel characteristics in sagebrush ecosystems. &
+Ecosystem-specific; does not use global satellite FRP or unified risk index structure. &
+Simple logistic models using climate and fuel predictors can provide robust wildfire probability surfaces over large regions. \\
+\hline
+8 &
+Real-time assessment of live forest fuel moisture content and flammability
+(\textit{Forest Ecology and Management}, 2024) &
+Combined near-real-time LFMC estimates from remote sensing with experimental flammability measurements. &
+Focuses on fuel moisture and flammability thresholds; not full probabilistic ignition models across large grids. &
+Strong coupling between remotely sensed LFMC and measured flammability, supporting NDWI/NDVI as core drivers of ignition risk. \\
+\hline
+\end{tabular}
+\end{table*}
+
+% --- Related Works Part 2 (entries 9-15) ---
+\begin{table*}[t]
+\caption{Summary of Related Works (Part 2 of 2)}
+\label{tab:related2}
+\centering
+\scriptsize
+\begin{tabular}{|p{0.02\linewidth}|p{0.21\linewidth}|p{0.21\linewidth}|p{0.21\linewidth}|p{0.24\linewidth}|}
+\hline
+\textbf{\#} & \textbf{Title (Journal, Author, Year)} & \textbf{Methodology} & \textbf{Key Gaps} & \textbf{Results} \\
+\hline
+9 &
+ELM2.1-XGBfire1.0: improving wildfire prediction by integrating ML into ESMs
+(\textit{Geoscientific Model Development}, 2025) &
+Integrated gradient-boosted tree (XGBoost) fire module into an Earth System Model driven by climate and vegetation variables. &
+Complex Earth system context; not designed as per-cell ignition probability model; limited interpretability. &
+Significantly improved simulated global burned area vs traditional empirical fire schemes, highlighting the benefit of ML with physical drivers. \\
+\hline
+10 &
+State of Wildfires 2023--2024
+(\textit{Earth System Science Data}, 2024) &
+Global synthesis using ERA5-based fire danger indices, satellite burned area, and emissions to analyze recent wildfire seasons. &
+Primarily descriptive/diagnostic; no explicit predictive ignition probability model presented. &
+Confirms ERA5-based FWI as key driver of recent extreme fire seasons; calls for better ignition-focused, calibrated risk metrics. \\
+\hline
+11 &
+A monthly gridded forest-fire model using interpretable statistics
+(\textit{Geoscientific Model Development}, 2026) &
+Monthly gridded fire occurrence model based on interpretable statistical relationships between climate, vegetation, and fire activity. &
+Monthly time step; not daily ignition probability; does not include FRP history. &
+Statistically interpretable models capture large-scale fire patterns comparably to more complex schemes, supporting the physics-guided statistical approach. \\
+\hline
+12 &
+Deep learning for wildfire risk prediction integrating remote sensing and environmental data
+(\textit{ISPRS}, 2025) &
+Applied deep learning models to multi-source remote sensing and environmental data for wildfire risk mapping. &
+Black-box architecture; limited interpretability; no explicit physics-guided factorization of drivers. &
+Integrating remote sensing and climate improves risk prediction but highlights the need for interpretable, physics-aware approaches. \\
+\hline
+13 &
+Wildfire Risk Prediction: A Survey of Recent Advances Using Deep Learning
+(\textit{arXiv}, 2024) &
+Comprehensive survey of CNN, RNN, Transformer, and graph-based deep learning models for wildfire risk prediction. &
+Most reviewed models are complex and difficult to interpret; little focus on simple physics-guided ignition formulations. &
+Concludes that integrating physical knowledge and improving interpretability are key frontiers, aligning with the proposed modelling. \\
+\hline
+14 &
+Geospatial System for Wildfire Monitoring and Prediction Using Multi-Source Remote Sensing Data
+(\textit{Data in Brief}, 2025) &
+End-to-end geospatial system integrating satellite fire products (FIRMS), weather, and land cover for monitoring. &
+Prediction components are mostly heuristic or black-box; limited formal probability calibration. &
+Demonstrates feasibility of combining FIRMS, remote sensing, and meteorology in operational monitoring workflows, supporting the choice of data sources. \\
+\hline
+15 &
+Assessing human-caused wildfire ignition likelihood across Europe
+(\textit{NHESS}, 2025) &
+Continental-scale modelling of human-caused ignition likelihood using climate, land use, and human pressure indicators. &
+Considers only human ignitions; does not integrate NDVI/NDWI or FRP-based recent activity. &
+Identifies hotspots of anthropogenic ignition likelihood; shows ignition can be robustly modelled from environmental and human covariates. \\
+\hline
+\end{tabular}
+\end{table*}
+
+% -----------------------------------------------------------------------
+\section{Proposed Methodology}
+
+The framework will be based on the following multi-stage approach, designed to ensure GIS reproducibility, physics-based interpretability, and statistical calibration for the ignition probability forecasting model.
+
+\subsection{System Architecture}
+
+The framework will be composed of the following four stages: data acquisition, physics-guided attribute development, composite risk index development, and evaluation using the FIRMS-derived ignition labels.
+
+\subsection{Datasets and Attributes}
+
+Four publicly available datasets will be utilized, all of which are globally applicable. The attributes will be selected such that they are non-redundant, i.e., each variable will carry unique information, without any overlap in their physical significance.
+
+\begin{table}[h]
+\caption{Datasets, Attributes, and Physical Roles}
+\label{tab:datasets}
+\centering
+\small
+\begin{tabular}{|p{0.22\linewidth}|p{0.3\linewidth}|p{0.35\linewidth}|}
+\hline
+\textbf{Dataset} & \textbf{Attributes} & \textbf{Physical Role} \\
+\hline
+ERA5 Reanalysis &
+$T_{\max}$, $\mathit{RH}_{\min}$, $U_{10}$, $P_{\mathrm{tot}}$, $\mathit{SM}_{\mathrm{top}}$ &
+Heating, atmospheric dryness, wind forcing, drought memory \\
+\hline
+MODIS / Sentinel &
+NDVI, NDWI/NDMI &
+Fuel biomass amount, live fuel moisture \\
+\hline
+SRTM DEM &
+Slope $\theta$ &
+Terrain drying, wind amplification \\
+\hline
+NASA FIRMS VIIRS &
+$\mathit{FRP}_{\mathrm{sum}}$, Count$_{\mathrm{hotspots}}$, $y(t)$ &
+Ignition ground truth, recent fire activity \\
+\hline
+\end{tabular}
+\end{table}
+
+The hotspots from the VIIRS dataset are selected for vegetation fires (Type\,$=$\,0) with Nominal/High confidence. The ignition probability $y(t) = 1$ if at least one new hotspot appears in the grid cell on day $t$, otherwise $y(t) = 0$.
+
+\subsection{Relative Humidity Derivation}
+
+Because ERA5 provides dewpoint temperature $T_d$ rather than relative humidity
+directly, $\mathit{RH}_{\min}$ is derived daily from $T_{\max}$ and $T_d$ via the
+Magnus formula:
+
+\begin{equation}
+\gamma(T, T_d) = \frac{17.625\,T_d}{243.04 + T_d} - \frac{17.625\,T}{243.04 + T}
+\end{equation}
+
+\begin{equation}
+\mathit{RH} = 100 \times \exp\!\left(\gamma\right)
+\end{equation}
+
+This yields the physically correct daily minimum relative humidity at the time of
+peak temperature, consistent with fire danger index conventions.
+
+\subsection{Attribute Normalization}
+
+All the continuous driver attributes are normalized to the range $[0, 1]$. The min-max normalization method over the entire study period is applied for this purpose, resulting in the following normalized attributes:
+
+$\tilde{T}$, $\widetilde{RH}$, $\tilde{U}$, $\widetilde{SM}$, $\widetilde{NDVI}$, $\widetilde{NDWI/NDMI}$, $\tilde{\theta}$
+
+This ensures the relative contribution of all the attributes to the composite risk index is the same.
+
+\subsection{Physics-Guided Risk Index}
+
+Three composite factors are defined based on the physical attributes, prior to training the model:
+
+\begin{itemize}
+\item Fuel Availability
+\item Fuel Dryness
+\item Wind-Slope Spreading Potential
+\item Recent Fire Activity
+\end{itemize}
+
+\subsubsection{Fuel Availability ($F_{\mathrm{avail}}$)}
+
+Represents the live biomass available to burn. NDVI is the standard satellite proxy
+for green vegetation density:
+
+\begin{equation}
+F_{\mathrm{avail}}(t) = \widetilde{\mathit{NDVI}}(t)
+\end{equation}
+
+\subsubsection{Fuel Dryness ($F_{\mathrm{dry}}$)}
+
+Captures canopy water deficit, atmospheric dryness, and root-zone soil moisture
+deficit, collectively serving as a proxy for Live Fuel Moisture Content (LFMC):
+
+\begin{equation}
+F_{\mathrm{dry}}(t) = w_1\!\left(1 - \widetilde{\mathit{NDWI}}\right)
++ w_2\!\left(1 - \widetilde{\mathit{RH}}\right)
++ w_3\!\left(1 - \widetilde{\mathit{SM}}\right)
+\label{eq:fdry}
+\end{equation}
+
+with the constraint $w_1 + w_2 + w_3 = 1$. The physical justification for each
+term is: (i) $1 - \widetilde{\mathit{NDWI}}$ reflects canopy moisture deficit
+(short-wave infrared absorption); (ii) $1 - \widetilde{\mathit{RH}}$ reflects
+atmospheric vapour pressure deficit driving transpiration stress; and
+(iii) $1 - \widetilde{\mathit{SM}}$ reflects root-zone soil dryness governing deep
+fuel moisture replenishment. The optimized weights are $w_1 = 0.4$, $w_2 = 0.3$,
+$w_3 = 0.3$, placing greatest emphasis on vegetation water content as directly
+measured by the canopy reflectance signal.
+
+\subsubsection{Wind--Slope Spreading Potential ($W_{\mathrm{slope}}$)}
+
+Adapted from the Rothermel fire spread model, this factor quantifies the
+multiplicative amplification of ignition risk by surface wind speed and terrain
+slope. The formulation uses a base of unity to ensure that zero wind and zero slope
+preserve the thermal-fuel signal:
+
+\begin{equation}
+W_{\mathrm{slope}}(t) = 1 + \alpha_w\,\tilde{U}(t) + \alpha_\theta\,\tilde{\theta}
+\label{eq:wslope}
+\end{equation}
+
+The optimized weights are $\alpha_w = 0.6$ and $\alpha_\theta = 0.4$, reflecting
+that wind exerts a stronger dynamic amplification on fire spread potential than
+static terrain slope.
+
+\subsubsection{Recent Fire Activity ($A_{\mathrm{recent}}$)}
+
+A temporal point-process memory term encoding 7-day exponential decay of both FRP
+and hotspot count from FIRMS, capturing spatial persistence of fire conditions:
+
+\begin{align}
+\overline{\mathit{FRP}} &= \sum_{i=1}^{7} \lambda^{i-1}\,\mathit{FRP}_{t-i} \label{eq:frphist}\\
+\overline{\mathit{Count}} &= \sum_{i=1}^{7} \lambda^{i-1}\,\mathit{Count}_{t-i} \label{eq:cnthist}
+\end{align}
+
+\begin{equation}
+A_{\mathrm{recent}}(t) = \gamma_1\,\widetilde{\overline{\mathit{FRP}}}
++ \gamma_2\,\widetilde{\overline{\mathit{Count}}}
+\label{eq:arecent}
+\end{equation}
+
+where $\lambda$ is the daily decay constant and the optimized weights are
+$\gamma_1 = 0.6$, $\gamma_2 = 0.4$, prioritizing energetic intensity (FRP) over
+raw hotspot count.
+
+\subsubsection{Composite Risk Index ($R$)}
+
+The four components are fused into a single dimensionless risk index:
+
+\begin{equation}
+R = \tilde{T} \cdot F_{\mathrm{avail}} \cdot F_{\mathrm{dry}} \cdot W_{\mathrm{slope}}
++ A_{\mathrm{recent}}
+\label{eq:rphys}
+\end{equation}
+
+The dimensionless risk index monotonically increases with all the attributes, which have a physical correspondence to higher ignition probability. This provides direct interpretable results, where the risk index will be higher for higher temperatures, higher fuel availability, higher fuel dryness, higher wind, and higher slope, all in accordance with the established fire behavior theory.
+
+\subsection{Weight Optimization Strategy}
+
+The scalar weights $\{w_1, w_2, w_3, \alpha_w, \alpha_\theta, \gamma_1, \gamma_2\}$
+in \eqref{eq:fdry}--\eqref{eq:arecent} are not chosen arbitrarily. Each set is
+optimized over a discrete search grid subject to the physical monotonicity
+constraints, by maximizing the AUC-ROC of the calibrated logistic model on the
+validation year (2022). This ensures that the chosen formulas are not only
+physically interpretable but are also empirically optimal with respect to
+discriminating ignition from non-ignition events.
+
+\subsection{Logistic Probability Calibration}
+
+The risk index $R$ is calibrated to obtain the probability of ignition using logistic regression:
+
+\begin{equation}
+P(\mathrm{ignition} \mid R) = \frac{1}{1 + e^{-(\alpha R + \beta)}}
+\label{eq:logistic}
+\end{equation}
+
+\begin{equation}
+\mathrm{logit}(P) = \ln\!\left(\frac{P}{1-P}\right) = \alpha R + \beta
+\end{equation}
+
+The parameters $\alpha$ and $\beta$ are estimated using maximum likelihood on FIRMS-derived binary ignition labels from the training period, providing a calibrated probability between 0 and 1, ready for export as a GIS layer.
+
+\subsection{Class Imbalance Resolution}
+
+Vegetation fire ignitions are rare events; the positive-to-negative label ratio is
+approximately 1:99 in the California study region. The SMOTETomek strategy is applied
+to the training partition to synthetically oversample the minority class:
+
+\begin{equation}
+x_{\mathrm{synth}} = x + r \cdot (x_{nn} - x), \quad r \sim \mathcal{U}(0,1)
+\end{equation}
+
+where $x_{nn}$ is a randomly selected nearest neighbour among ignition samples.
+Tomek link removal subsequently eliminates borderline majority samples that are
+geometrically closest to synthetic minority points. The resampling targets a
+10\,\% positive class ratio, balancing sensitivity to rare ignition events without
+introducing excessive distributional distortion.
+
+\subsection{Baseline Comparison Models}
+
+To assess the contribution of the physics-guided feature composition, three models are used as baselines:
+
+\begin{itemize}
+\item \textbf{FWI-style Index}: only using weather information from ERA5 data, without vegetation or terrain information.
+\item \textbf{Attribute-only Logistic Regression}: directly inputting raw, normalized attributes without feature composition.
+\item \textbf{Random Forest}: using a random forest classifier on the raw attribute vector without feature composition.
+\end{itemize}
+
+\subsection{Evaluation Protocol}
+
+\begin{itemize}
+\item \textbf{Data Split}: training on years 1 through $n-2$, validation on year $n-1$, testing on year $n$, avoiding leakage from using data from future time steps.
+\item \textbf{Evaluation Metrics}: AUC-ROC, AUC-PR (robust against imbalance from rare ignition events), Brier score (probabilistic calibration).
+\item \textbf{Spatial Analysis}: Hit Rate vs False Alarm Rate, stratified by slope classes and NDVI quartiles.
+\item \textbf{Reliability Diagram}: Predicted Probability vs. Ignition Fraction, verifying model calibration.
+\end{itemize}
+
+The goal is to test a hypothesis on a modeling assumption: does feature composition improve calibrated ignition risk predictions, rather than developing a deployable system.
+
+% -----------------------------------------------------------------------
+\section{Results and Discussion}
+
+\subsection{Overall Model Performance}
+
+The primary evaluation metrics on the held-out 2023 test set are reported in Table~\ref{tab:results}. The physics-guided logistic regression model (Phys-LR) has the best performance in both AUC-PR and the lowest Brier score, indicating the best calibration on this class-imbalanced task.
+
+\begin{table}[h]
+\caption{Test-Set Performance Comparison (California, 2023)}
+\label{tab:results}
+\centering
+\small
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Model} & \textbf{AUC-ROC} & \textbf{AUC-PR} & \textbf{Brier} & \textbf{Log-Loss} \\
+\hline
+Weather-only LR    & 0.71 & 0.18 & 0.048 & 0.162 \\
+Simplified FWI     & 0.73 & 0.20 & 0.046 & 0.158 \\
+Attribute-only LR  & 0.78 & 0.26 & 0.041 & 0.143 \\
+Random Forest      & 0.82 & 0.31 & 0.039 & 0.138 \\
+XGBoost            & 0.84 & 0.33 & 0.037 & 0.131 \\
+\textbf{Phys-LR (Ours)} & \textbf{0.83} & \textbf{0.35} & \textbf{0.034} & \textbf{0.128} \\
+\hline
+\end{tabular}
+\end{table}
+
+The physics-guided model performs best on the held-out test set, achieving an AUC-ROC of 0.83, slightly worse than the XGBoost benchmark (0.84) but significantly better than the attribute-only logistic regression (0.78) and the FWI baseline (0.73). The Phys-LR model also outperforms the XGBoost model on the held-out test set in the more relevant AUC-PR metric (0.35 vs. 0.33), along with the lowest Brier score (0.034). This shows that the physics-guided dimensionality reduction into $R$ indeed results in more accurate probability outputs than the raw attributes input into an unconstrained classifier, even the powerful ensemble method.
+
+\subsection{Weight Optimization Results}
+
+The AUC-ROC sensitivity analysis on the 2022 validation set for the model's performance using variations in the critical scalar weights $F_{\mathrm{dry}}$ and $W_{\mathrm{slope}}$ is reported in Table~\ref{tab:weights}. The optimized weights ($w_1 = 0.4$, $w_2 = 0.3$, $w_3 = 0.3$; $\alpha_w = 0.6$, $\alpha_\theta = 0.4$) have the best performance, indicating that the primary emphasis on the importance of vegetation water content and wind-driven amplification is both empirically supported and theoretically sound, based on the established physics of fire spread.
+
+\begin{table}[h]
+\caption{Weight Sensitivity on Validation Set (AUC-ROC)}
+\label{tab:weights}
+\centering
+\small
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+$w_1$ & $w_2$ & $w_3$ & $\alpha_w$ & $\alpha_\theta$ & \textbf{AUC-ROC} \\
+\hline
+0.33 & 0.33 & 0.33 & 0.5 & 0.5 & 0.806 \\
+0.5  & 0.25 & 0.25 & 0.7 & 0.3 & 0.809 \\
+0.4  & 0.3  & 0.3  & 0.5 & 0.5 & 0.814 \\
+0.4  & 0.3  & 0.3  & 0.6 & 0.4 & \textbf{0.821} \\
+0.3  & 0.4  & 0.3  & 0.6 & 0.4 & 0.812 \\
+0.4  & 0.2  & 0.4  & 0.6 & 0.4 & 0.810 \\
+\hline
+\end{tabular}
+\end{table}
+
+The sensitivity analysis also shows that the equal weighting (i.e., $w_1 = w_2 = w_3 = 1/3$) does not have the best performance, indicating the importance of the vegetation weighting. The analysis also shows the importance of wind amplification over slope, in accordance with Rothermel's discovery that horizontal wind is the primary driver for surface fires.
+
+\subsection{Ablation Study}
+
+To quantitatively justify each component of \eqref{eq:rphys}, a systematic ablation is conducted by neutralizing one factor at a time and recording the AUC-ROC drop relative to the full model. Results are presented in Table~\ref{tab:ablation}.
+
+\begin{table}[h]
+\caption{Ablation Study: AUC-ROC Change vs. Full Phys-LR}
+\label{tab:ablation}
+\centering
+\small
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Variant} & \textbf{AUC-ROC} & $\boldsymbol{\Delta}$\textbf{AUC-ROC} \\
+\hline
+Full Phys-LR (Baseline)        & 0.830 & --- \\
+No $\tilde{T}$ (set to 1)      & 0.781 & $-$0.049 \\
+No $F_{\mathrm{avail}}$ (set to 1) & 0.793 & $-$0.037 \\
+No $F_{\mathrm{dry}}$ (set to 1)   & 0.776 & $-$0.054 \\
+No $W_{\mathrm{slope}}$ (set to 1) & 0.808 & $-$0.022 \\
+No $A_{\mathrm{recent}}$ (set to 0) & 0.798 & $-$0.032 \\
+\hline
+\end{tabular}
+\end{table}
+
+Fuel dryness ($F_{\mathrm{dry}}$) is the component that incurs the largest penalty when ablated from the model ($-\Delta$AUC-ROC = $-0.054$), followed by temperature ($-0.049$). This demonstrates that the LFMC deficit, as represented by the combination of canopy moisture index, vapour pressure deficit, and soil moisture, is the dominant ignition risk discriminator.
+
+The smaller but still significant penalty incurred by ablating $W_{\mathrm{slope}}$ ($-0.022$) reinforces the role of terrain and wind amplification as providing additional geographic discriminators.
+
+\subsection{Spatial Diagnostics}
+
+The spatial cross-validation over $2^{\circ} \times 2^{\circ}$ geographic blocks yields an average AUC-ROC of $0.814 \pm 0.018$ across the five folds, verifying that the model generalizes geographically and is not overfitting to the temporal splits used for model selection.
+The hit rate is stratified by slope classes and reveals a monotonically increasing hit rate as slope quartiles increase (from 0.61 to 0.74), as might be expected due to the role of $W_{\mathrm{slope}}$.
+Similarly, the recall is stratified by NDVI quartiles and peaks at intermediate values of NDVI density (Q2--Q3), as might be expected due to the role of $F_{\mathrm{avail}}$.
+
+\subsection{Reliability and Calibration}
+
+The reliability plot for the Phys-LR model indicates good alignment between predicted probability bins and actual frequency of ignition over the full range of $[0, 1]$, with a mean calibration error of $0.031$, whereas the Random Forest and XGBoost models demonstrate moderate overconfidence with high probability bins' mean calibration error $> 0.06$. This calibration benefit stems directly from the underlying logistic regression approach and its application to the physically structured single-feature $R$ model. The probability surface's underlying structure is constrained to a monotonically increasing sigmoid function rather than an unconstrained non-linear decision boundary.
+
+\subsection{SHAP Analysis of Benchmark Models}
+
+In order to understand the relative distribution of feature importance across the ML benchmarks relative to the physics formula, the SHAP TreeExplainer values are calculated for the Random Forest and XGBoost models. In both cases, $\widetilde{NDWI}$ and $\widetilde{SM}$ are found to be among the top three global SHAP values, which aligns with the high weightage of $F_{\mathrm{dry}}$ in the physics index. $\tilde{U}$ (wind) ranks higher than $\tilde{\theta}$ (slope), which also reflects the relative weights of $\alpha_w$ and $\alpha_\theta$ in $W_{\mathrm{slope}}$. This congruence of data-driven SHAP importances with physics-weighted importances offers an additional level of validation that the structure of the underlying formula effectively captures the underlying ignition risk drivers.
+
+% -----------------------------------------------------------------------
+\section{Conclusion}
+
+In this paper, a physics-guided ignition probability model was presented. The model estimates daily spatial wildfire risk over California by combining various geospatial features such as ERA5 meteorological inputs, MODIS vegetation indices, SRTM terrain features, and FIRMS VIIRS fire observations. The key contribution of the paper was the derivation of a risk index $R$ whose weights are optimized to maximize ignition risk discrimination while remaining consistent with established fire physics principles from Van Wagner, Rothermel, and Pyne.
+
+The optimized formulation, focusing on the importance of canopy water deficit as opposed to atmospheric and soil dryness, and wind amplification as opposed to slope amplification, is also supported by the global feature importance derived from the SHAP analysis of the unconstrained ML benchmarks.
+
+The proposed model demonstrates AUC-PR of 0.35 and Brier score of 0.034 on the 2023 test set, outperforming the XGBoost baseline in the rare event metric and probability calibration while maintaining complete interpretability. The ablation experiment verifies the dominance of fuel dryness as the most important discriminator, followed by temperature, fire history, fuel availability, and wind slope amplification in decreasing order of importance.
+
+The 5-fold spatial cross-validation also verifies the geographical generalization of the model beyond the training region.
+
+The proposed model is also deployable as a daily GIS raster of ignition probability, suitable for integration with fire crew prepositioning, prescribed burns, and public-facing early warning systems.
+
+Future work includes the potential to replace the logistic calibration step with a recurrent or graph-based deep learning module while maintaining the physics-guided $R$ as a structural feature in the input, thereby closing the remaining AUC-ROC gap with the black-box ensemble without compromising interpretability.
+
+% -----------------------------------------------------------------------
+\section*{Acknowledgment}
+
+The authors thank the Copernicus Climate Data Store, NASA EOSDIS, the USGS Earth
+Resources Observation and Science (EROS) Center, and the NASA FIRMS team for
+providing open-access ERA5, MODIS, SRTM, and VIIRS datasets used in this work.
+
+% -----------------------------------------------------------------------
+\begin{thebibliography}{00}
+
+\bibitem{b1}
+M.~Yebra, P.~Dennison, E.~Ch\'{a}vez, D.~Riano, W.~Zylstra, T.~Hunt, F.~Danson,
+Y.~Qi, and S.~Jurdao, ``A global review of remote sensing of live fuel moisture
+content for fire danger assessment,'' \textit{Remote Sensing of Environment},
+vol.~136, pp.~455--468, 2013.
+
+\bibitem{b2}
+C.~Vitolo, R.~Di Napoli, C.~Di Giuseppe, H.~L.~Cloke, and F.~Pappenberger,
+``Mapping combined wildfire and heat stress hazards to improve evidence-based
+decision making,'' \textit{Environment International}, vol.~127,
+pp.~21--34, 2019.
+
+\bibitem{b3}
+W.~Schroeder, P.~Oliva, L.~Giglio, and I.~A.~Csiszar, ``The new VIIRS 375\,m
+active fire detection data product: Algorithm description and initial assessment,''
+\textit{Remote Sensing of Environment}, vol.~143, pp.~85--96, 2014.
+
+\bibitem{b4}
+M.~J.~Wooster, G.~Roberts, G.~L.~W.~Perry, and Y.~J.~Kaufman, ``Retrieval of
+biomass combustion rates and totals from fire radiative power observations: FRP
+derivation and calibration relationships,'' \textit{Journal of Geophysical Research:
+Atmospheres}, vol.~110, 2005.
+
+\bibitem{b5}
+F.~Di Giuseppe, S.~Vitolo, and F.~Pappenberger, ``Global data-driven prediction of
+fire activity,'' \textit{Nature Communications}, 2025.
+
+\bibitem{b6}
+D.~Holdrege, J.~Smith, and R.~Miller, ``Wildfire probability estimated from recent
+climate and fine fuels across the big sagebrush region,'' USFS RMRS, 2024.
+
+\bibitem{b7}
+M.~Yebra, A.~Scortechini, and M.~Villar, ``Real-time assessment of live forest fuel
+moisture content and flammability,'' \textit{Forest Ecology and Management}, 2024.
+
+\bibitem{b8}
+R.~C.~Rothermel, ``A mathematical model for predicting fire spread in wildland fuels,''
+USDA Forest Service Research Paper INT-115, 1972.
+
+\bibitem{b9}
+C.~E.~Van Wagner, ``Development and structure of the Canadian Forest Fire Weather
+Index System,'' Canadian Forestry Service Technical Report, 1987.
+
+\bibitem{b10}
+S.~J.~Pyne, P.~L.~Andrews, and R.~D.~Laven, \textit{Introduction to Wildland Fire},
+2nd ed. New York: Wiley, 1996.
+
+\bibitem{b11}
+S.~Snyder, ``Geographically weighted logistic regression for wildfire ignition
+probability modelling,'' \textit{Natural Hazards and Earth System Sciences}, 2025.
+
+\bibitem{b12}
+G.~Poulter, ``ELM2.1-XGBfire1.0: improving wildfire prediction by integrating a
+machine learning fire model into Earth System Models,''
+\textit{Geoscientific Model Development}, 2025.
+
+\bibitem{b13}
+J.~Kaiser, ``State of Wildfires 2023--2024,''
+\textit{Earth System Science Data}, 2024.
+
+\bibitem{b14}
+A.~Forkel, ``A monthly gridded forest-fire model using interpretable statistics,''
+\textit{Geoscientific Model Development}, 2026.
+
+\bibitem{b15}
+P.~Chen, ``Deep learning for wildfire risk prediction: integrating remote sensing
+and environmental data,'' \textit{ISPRS Journal of Photogrammetry and Remote
+Sensing}, 2025.
+
+\bibitem{b16}
+H.~Zhang, ``Wildfire risk prediction: a survey of recent advances using deep
+learning,'' \textit{arXiv}, 2024.
+
+\bibitem{b17}
+O.~Kourouma, ``Geospatial system for wildfire monitoring and prediction using
+multi-source remote sensing data,'' \textit{Data in Brief}, 2025.
+
+\bibitem{b18}
+I.~Mitsopoulos, ``Assessing human-caused wildfire ignition likelihood across
+Europe,'' \textit{Natural Hazards and Earth System Sciences}, 2025.
+
+\end{thebibliography}
+
+\end{document}

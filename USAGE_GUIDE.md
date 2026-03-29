@@ -12,6 +12,7 @@ A physics-guided wildfire ignition probability model for California.
 6. [Inference](#6-inference)
 7. [Configuration Reference](#7-configuration-reference)
 8. [Troubleshooting](#8-troubleshooting)
+9. [Daily Grid Map Website](#9-daily-grid-map-website)
 
 ---
 
@@ -367,6 +368,67 @@ For large datasets, SHAP samples are limited. You can reduce further by editing 
 
 ---
 
+## 9. Daily Grid Map Website
+
+This is the primary research demo flow: provide one day of grid data, run the
+model, and render a California grid map with per-cell ignition probabilities.
+
+### Generate Demo Day Datasets
+
+```bash
+python scripts/create_demo_daily_grid_data.py
+```
+
+This creates:
+
+```
+data/demo/daily_grid_2022-07-15.csv
+data/demo/daily_grid_2023-07-15.csv
+```
+
+Both files include normalized feature columns and `ignition` truth.
+
+### Launch Website
+
+```bash
+streamlit run single_day_map_dashboard.py
+```
+
+### Website Workflow
+
+1. Choose a demo dataset or upload a one-day CSV
+2. Run inference from that day data only
+3. View interactive California grid map
+4. Show probability number in each grid cell (toggle)
+5. Compare Baseline vs Optimized model
+6. If `ignition` exists, view fire/no-fire metrics (Accuracy, Precision, Recall, F1)
+
+### Required CSV Columns
+
+- `latitude`, `longitude`
+- `t_max`, `rh_min`, `u10_max`, `sm_top`, `ndvi`, `ndwi`, `slope`, `frp_hist`, `count_hist`
+- Optional: `ignition` for truth checking
+
+### Optimize and Compare Models
+
+```bash
+python scripts/optimize_formula_profile.py --sample-size 90000 --restarts 8
+python scripts/retrain_physics_profiles.py
+```
+
+Outputs:
+
+```
+outputs/optimized_formula_profile.json
+outputs/formula_profile_comparison.csv
+outputs/formula_profile_optimization_history.csv
+outputs/physics_profile_retrain_comparison.csv
+models/physics_logistic_baseline_retrained.joblib
+models/physics_logistic_optimized.joblib
+```
+
+---
+
 ## Quick Start Summary
 
 ```bash
@@ -389,9 +451,13 @@ python run_preprocess.py
 # 5. Train & Evaluate
 python run_train.py
 
-# 6. Inference
-python run_inference.py --date 2023-07-01
+# 6. Build demo day datasets
+python scripts/create_demo_daily_grid_data.py
 
-# 7. View results
-ls outputs/
+# 7. Optional optimization + retrain comparison
+python scripts/optimize_formula_profile.py --sample-size 90000 --restarts 8
+python scripts/retrain_physics_profiles.py
+
+# 8. Launch daily map website
+streamlit run single_day_map_dashboard.py
 ```

@@ -207,16 +207,24 @@ def save_model(model, path, name="model"):
 
 def load_model(path, name="model"):
     """Load a trained model from disk."""
+    def _compat_patch_model(model_obj):
+        # Handle legacy LogisticRegression artifacts that may miss attributes
+        # expected by newer sklearn runtime code paths.
+        if isinstance(model_obj, LogisticRegression):
+            if not hasattr(model_obj, "multi_class"):
+                model_obj.multi_class = "auto"
+        return model_obj
+
     # Try joblib first, fall back to pickle for legacy models
     filepath_joblib = os.path.join(path, f"{name}.joblib")
     filepath_pkl = os.path.join(path, f"{name}.pkl")
 
     if os.path.exists(filepath_joblib):
-        return joblib.load(filepath_joblib)
+        return _compat_patch_model(joblib.load(filepath_joblib))
     elif os.path.exists(filepath_pkl):
         import pickle
         with open(filepath_pkl, "rb") as f:
-            return pickle.load(f)
+            return _compat_patch_model(pickle.load(f))
     else:
         raise FileNotFoundError(f"No model found at {filepath_joblib} or {filepath_pkl}")
 
@@ -238,6 +246,8 @@ def predict_proba(model, X):
     -------
     probabilities : ndarray (n,) - P(ignition=1)
     """
+    if isinstance(model, LogisticRegression) and not hasattr(model, "multi_class"):
+        model.multi_class = "auto"
     return model.predict_proba(X)[:, 1]
 
 

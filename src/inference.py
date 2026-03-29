@@ -8,9 +8,38 @@ for each grid cell.
 import os, json, yaml
 import numpy as np
 import xarray as xr
+import pandas as pd
 from src.normalize import normalize, load_params
 from src.features import build_all_features
 from src.models import load_model, predict_proba
+
+
+def _safe_predict_proba(model, X):
+    """
+    Predict probabilities while handling missing/non-finite rows.
+
+    Returns
+    -------
+    probs : np.ndarray, shape (n_samples,)
+        Probabilities for valid rows and NaN for invalid rows.
+    """
+    X = np.asarray(X)
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+
+    finite_mask = np.isfinite(X).all(axis=1)
+    probs = np.full(X.shape[0], np.nan, dtype=float)
+
+    if finite_mask.any():
+        probs[finite_mask] = predict_proba(model, X[finite_mask])
+    else:
+        raise ValueError("No valid finite feature rows available for inference")
+
+    n_bad = int((~finite_mask).sum())
+    if n_bad > 0:
+        print(f"  [WARN] Skipped {n_bad} cells with non-finite features during inference")
+
+    return probs
 
 
 def run_inference(date_str, cfg, model_dir, norm_params_path, output_dir):
@@ -64,7 +93,7 @@ def run_inference(date_str, cfg, model_dir, norm_params_path, output_dir):
 
         R_phys = slice_ds["R_phys"].values.flatten()
         X = R_phys.reshape(-1, 1)
-        probs = predict_proba(model, X)
+        probs = _safe_predict_proba(model, X)
         prob_grid = probs.reshape(n_lat, n_lon)
     else:
         # Demo: random probabilities
@@ -124,3 +153,115 @@ def write_geotiff(prob_da, output_path):
         dst.write(data, 1)
 
     print(f"  [OK] GeoTIFF -> {output_path}")
+
+
+def run_inference_from_daily_dataframe(
+    day_df,
+    cfg,
+    model_dir,
+    norm_params_path,
+    normalized_input=True,
+    model_name="physics_logistic",
+):
+    """
+    Run single-day inference from a provided daily grid dataframe.
+
+    Expected columns:
+      latitude, longitude, and either:
+      - R_phys
+      - or raw/normalized feature columns
+        [t_max, rh_min, u10_max, sm_top, ndvi, ndwi, slope, frp_hist, count_hist]
+    """
+    from src.grid import grid_info, assign_to_grid
+    from src.features import (
+        compute_F_avail,
+        compute_F_dry,
+        compute_G_spread,
+        compute_H_history,
+        compute_R_phys,
+    )
+
+    if not isinstance(day_df, pd.DataFrame):
+        day_df = pd.DataFrame(day_df)
+
+    required_loc = ["latitude", "longitude"]
+    for col in required_loc:
+        if col not in day_df.columns:
+            raise ValueError(f"Missing required column '{col}'")
+
+    gi = grid_info(cfg)
+    model = load_model(model_dir, model_name)
+    norm_params = load_params(norm_params_path)
+
+    work = day_df.copy()
+
+    feature_cols = [
+        "t_max", "rh_min", "u10_max", "sm_top", "ndvi",
+        "ndwi", "slope", "frp_hist", "count_hist",
+    ]
+
+    if "R_phys" in work.columns:
+        r_vals = work["R_phys"].to_numpy(dtype=float)
+    else:
+        missing = [c for c in feature_cols if c not in work.columns]
+        if missing:
+            raise ValueError(
+                "Missing feature columns for inference: " + ", ".join(missing)
+            )
+
+        normed = {}
+        for c in feature_cols:
+            vals = work[c].to_numpy(dtype=float)
+            if normalized_input:
+                normed[c] = np.clip(vals, 0.0, 1.0)
+            else:
+                normed[c] = normalize(vals, norm_params[c])
+
+        f_avail = compute_F_avail(normed["ndvi"])
+        f_dry = compute_F_dry(normed["ndwi"], normed["rh_min"], normed["sm_top"], cfg["alpha"])
+        g_spread = compute_G_spread(normed["u10_max"], normed["slope"], cfg["beta"])
+        h_history = compute_H_history(normed["frp_hist"], normed["count_hist"], cfg["gamma"])
+        r_vals = compute_R_phys(normed["t_max"], f_avail, f_dry, g_spread, h_history)
+
+    lat_idx, lon_idx = assign_to_grid(
+        work["latitude"].to_numpy(dtype=float),
+        work["longitude"].to_numpy(dtype=float),
+        gi["lat_min"],
+        gi["lon_min"],
+        gi["resolution"],
+    )
+
+    valid = (
+        np.isfinite(r_vals)
+        & np.isfinite(lat_idx)
+        & np.isfinite(lon_idx)
+        & (lat_idx >= 0)
+        & (lon_idx >= 0)
+        & (lat_idx < gi["n_lat"])
+        & (lon_idx < gi["n_lon"])
+    )
+
+    prob_grid = np.full((gi["n_lat"], gi["n_lon"]), np.nan, dtype=float)
+    if valid.any():
+        x = np.asarray(r_vals[valid], dtype=float).reshape(-1, 1)
+        p = _safe_predict_proba(model, x)
+        prob_grid[lat_idx[valid], lon_idx[valid]] = p
+
+    result = xr.DataArray(
+        prob_grid,
+        dims=["latitude", "longitude"],
+        coords={"latitude": gi["lats"], "longitude": gi["lons"]},
+        name="ignition_probability",
+        attrs={
+            "units": "probability",
+            "description": "Ignition probability from provided daily dataframe",
+            "model": f"physics-guided logistic regression ({model_name})",
+        },
+    )
+
+    meta = {
+        "rows_total": int(len(work)),
+        "rows_valid": int(valid.sum()),
+        "rows_dropped": int((~valid).sum()),
+    }
+    return result, meta

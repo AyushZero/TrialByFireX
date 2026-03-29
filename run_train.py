@@ -349,10 +349,26 @@ def main():
     print("STEP 5 . Model comparison")
     print("=" * 65)
 
-    comp_df = compare_models(results,
+    # Optional: filter plotted/evaluated models via env var.
+    # Example: TBF_EVAL_MODELS="Physics Logistic,Random Forest,XGBoost"
+    eval_results = results
+    eval_preds = preds
+    eval_models_env = os.environ.get("TBF_EVAL_MODELS", "").strip()
+    if eval_models_env:
+        wanted_models = [m.strip() for m in eval_models_env.split(",") if m.strip()]
+        eval_results = {k: v for k, v in results.items() if k in wanted_models}
+        eval_preds = {k: v for k, v in preds.items() if k in wanted_models}
+        if not eval_results:
+            raise ValueError(
+                "TBF_EVAL_MODELS did not match any trained model names. "
+                f"Requested={wanted_models}; available={list(results.keys())}"
+            )
+        print(f"  Using filtered model set for plots/comparison: {list(eval_results.keys())}")
+
+    comp_df = compare_models(eval_results,
         save_path=os.path.join(outputs_dir, "model_comparison.csv"))
-    plot_roc_curves(preds, save_path=os.path.join(outputs_dir, "roc_curves.png"))
-    plot_pr_curves(preds, save_path=os.path.join(outputs_dir, "pr_curves.png"))
+    plot_roc_curves(eval_preds, save_path=os.path.join(outputs_dir, "roc_curves.png"))
+    plot_pr_curves(eval_preds, save_path=os.path.join(outputs_dir, "pr_curves.png"))
     plot_model_comparison_bar(comp_df,
         save_path=os.path.join(outputs_dir, "model_comparison_bar.png"))
 
@@ -362,7 +378,7 @@ def main():
     print("\n" + "=" * 65)
     print("STEP 6 . Confusion matrices")
     print("=" * 65)
-    for name, (y_t, y_p) in preds.items():
+    for name, (y_t, y_p) in eval_preds.items():
         safe = name.lower().replace(" ", "_").replace("+", "_")
         plot_confusion_matrix(y_t, y_p, model_name=name,
             save_path=os.path.join(outputs_dir, f"confusion_{safe}.png"))
